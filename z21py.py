@@ -2,7 +2,7 @@
 
     MIT License
 
-Copyright (c) 2023 fherb2
+Copyright (c) 2023 Frank Herbrand, herbrand at gmx.de (fherb2 at github.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
