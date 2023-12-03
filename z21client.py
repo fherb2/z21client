@@ -93,33 +93,89 @@ class z21Client():
     
     # ###########################################################################################
     
-    @dataclass
     class SndMsg():
-        name:           str             # Name of the message as defined in Z21 LAN specification
-        pack_callback:  Callable        # function (pointer) to pack given data of a message as data stream during
-                                        # (snd_stream)
-        x_header:       int             # in case there is a X-Header (4 Byte)
-        db0:            int      = None # in case there is a fix data byte 0 (1 byte) 
+        def __init__(self,
+                     name:          str,        # Name of the message as defined in Z21 LAN specification
+                     pack_callback: Callable,   # function (pointer) to pack given data of a message as data stream
+                     header:        int,        # header of message
+                     sub_header:    int = None, # in case there is a sub header like X-Header (4 Byte)
+                     db0:           int = None, # in case there is a fix data byte 0 (1 byte) 
+                     ):
+            # following, we avoid a direct manipulation of private data
+            self._name          = name
+            self._pack_callback = pack_callback
+            self._header        = header
+            self._sub_header    = sub_header
+            self._db0           = db0
+            self._last_data     = None  # last sent data
+        
+        # following, we avoid a direct manipulation of private data
+        @property
+        def name(self) -> str:
+            return self._name
+        @property
+        def pack_callback(self) -> Callable:
+            return self._pack_callback
+        @property
+        def header(self) -> int:
+            return self._header
+        @property
+        def sub_header(self) -> int:
+            return self._sub_header
+        @property
+        def db0(self) -> int:
+            return self._db0
+        @property
+        def last_data(self) -> Any:
+            return self._last_data
 
         @property
-        def stream(self) -> Any:
-            assert self.x_header is not None, f"x_header is empty (None); must be set before request the byte stream"
-            bstream = (self.x_header & 0xFFFF).to_bytes(2, 'little') 
-            
-            # ...
-            # call pack_callback to create the data part 
+        def stream(self, data:Any) -> bytes:
+            self._last_data = data
+            byte_stream = (self.header & 0xFFFF).to_bytes(2, 'little')
+            if self.sub_header is not None:
+                byte_stream = (self.sub_header & 0xFFFF).to_bytes(2, 'little')
+            if self.db0 is not None:
+                byte_stream += (self.db0 & 0xFF).to_bytes(1, 'little')
+            byte_stream += self.pack_callback(data)
+            return len(byte_stream).to_bytes(2, 'little') + byte_stream
         
-    @dataclass
-    class RcvMsg():
-        name:           str                 # Name of the message as defined in Z21 LAN specification
-        unpack_callback:Callable            # function (pointer) to unpack received data bytes into a single object
-                                            # or a tuple of objects like unpack_callback defined
-        x_header:       int                 # in case there is a X-Header (4 Byte)
-        db0:            int         = None  # in case there is a fix data byte 0 (1 byte) 
-        data_stream:    bytes       = None  # data bytes of received data before unpacking
+        @property 
+        def all(self) -> dict:
+            return {
+                "name": self.name(),
+                "pack_callback": self.pack_callback(),
+                "header": self.header(),
+                "sub_header": self.sub_header(),
+                "db0": self.db0(),
+                "last_data": self._last_data(),
+                "last_stream": self.stream(self._last_data)
+            }
+            
+    change following class like class SndMsg()
 
-        def data(self) -> Any:
-            assert self.x_header is not None, f"x_header is empty (None); must be set before request the byte stream"
+    class RcvMsg():
+        def __int__(self,
+                    name:           str,        # Name of the message as defined in Z21 LAN specification
+                    unpack_callback:Callable,   # function (pointer) to unpack received data bytes
+                    header:         int,        # header of message
+                    sub_header:     int = None, # in case there is a sub header like X-Header (4 Byte)
+                    db0:            int = None  # in case there is a fix data byte 0 (1 byte)
+                    ):
+            # following, we avoid a direct manipulation of private data
+            self._name              = name
+            self._unpack_callback   = unpack_callback
+            self._header            = header
+            self._sub_header        = sub_header
+            self._db0               = db0
+            self.date: Any          = None  # last received data
+            
+        # following, we avoid a direct manipulation of private data
+        @property
+        
+        def save_if_matches(self, stream) -> bool:
+            pass
+
             
             
 #                                                                                              # 
