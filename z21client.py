@@ -1,4 +1,6 @@
-""" Main class of the module
+# -*- coding: utf-8 -*-
+"""# Main class of the module z21client
+===========================================
 
 This module implements communication with the Roco/Fleischmann Z21 central
 and compatible devices.
@@ -16,9 +18,16 @@ value to specify the special message and "myZ21Object.get_serial_number()"
 as function call to process these message. Inside the class, of course, 
 "self." is used instead "myZ21Object".
 
-Conceptual state: The content and interfaces can still change considerably.
+Conceptual state:
+-----------------
+
+The content and interfaces can still change considerably.
 
 ----------------------------------------------------------------------------
+
+License
+========
+
 MIT License
 
 Copyright (c) 2023 Frank Herbrand, herbrand at gmx.de (fherb2 at github.com)
@@ -41,6 +50,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+
 # #################################################################################################
 #                                                                                                 #
 # Imports                                                                                         #
@@ -72,15 +82,16 @@ from dataclasses import dataclass
 # #################################################################################################
     
 
-
-
-###################################################################################################
+# #################################################################################################
 #                                                                                                 #
 # Module main class                                                                               #
 # =================                                                                               #
 #                                                                                                 #
 class z21Client():
     """z21 main class
+    =================
+    
+    For some basic information about the module and the class, please, read the module documentation.
 
     Conceptual state: The content and interfaces can still change considerably.
     """
@@ -92,8 +103,23 @@ class z21Client():
         pass
     
     # ###########################################################################################
-    
+    #
     class SndMsg():
+        _name:str               = None
+        """private, str | None: Name of the message as defined in Z21 LAN specification without the part 'LAN_'."""
+        _pack_callback:Callable = None
+        """private, Callable | None: Function what converts data of the message into a byte stream."""
+        _header:int             = None
+        """private, int | None: Header as defined by Z21 documentation."""
+        _sub_header:int         = None
+        """private, int | None: Special Z21 messages has a second header specifier inside the data specified by the main header."""
+        _db0:int                = None
+        """private, int | None: Some less messages have a third level specifier for the message named DB0."""
+        _last_data              = None
+        """private, bytes | None: After call of 'stream(data:Any)' what calculates and give back a byte stream
+        containing data, '_last_data' contains the used data."""
+        
+        
         def __init__(self,
                      name:          str,        # Name of the message as defined in Z21 LAN specification
                      pack_callback: Callable,   # function (pointer) to pack given data of a message as data stream
