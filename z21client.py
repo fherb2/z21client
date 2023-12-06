@@ -1,22 +1,38 @@
 # -*- coding: utf-8 -*-
-"""# Main class of the module z21client
-===========================================
+#
+# Software Licence Conditions
+# ---------------------------
+# All licence information can be found in the following docstring of the module.
+#
+# Hint for editing this source code:
+# ----------------------------------
+#
+# As there is a lot of documentation text here, please configure your code editing
+# software for automatic line feed for long lines. This is more simple than to
+# correct manual line feeds during changing of documentations texts.
+#
+# Thanks and best regards,
+# Frank
+# (fherb2 @ github.com)
+#
+"""Python module: z21client
+===========================
 
-This module implements communication with the Roco/Fleischmann Z21 central
-and compatible devices.
+Introduction
+------------
 
-This project based on the Roco published "Z21 LAN Protocol Specification",
-V1.13 (EN), downloaded from https://www.z21.eu/en/downloads/manuals at
-3.12. 2023 by using the link 
-https://www.z21.eu/media/Kwc_Basic_DownloadTag_Component/root-en-main_47-1652-959-downloadTag-download/default/d559b9cf/1699290380/z21-lan-protokoll-en.pdf. This document can not be part of these development repository since the copyright policy in this document.
+This module implements communication with the Roco/Fleischmann Z21 central and compatible devices.
 
-Z21-LAN message identifiers, like LAN_GET_SERIAL_NUMBER will be used here
-identically with the exception of the first 4 letters. Outside the class,
-these 4 letters will be placed by the class object name. So the message name
-"LAN_GET_SERIAL_NUMBER" changes to "myZ21Object.GET_SERIAL_NUMBER" as constant
-value to specify the special message and "myZ21Object.get_serial_number()"
-as function call to process these message. Inside the class, of course, 
-"self." is used instead "myZ21Object".
+It based on the published "Z21 LAN Protocol Specification", V1.13 (EN), by Roco/Fleischmann, downloaded from https://www.z21.eu/en/downloads/manuals at 3.12. 2023 by using the link https://www.z21.eu/media/Kwc_Basic_DownloadTag_Component/root-en-main_47-1652-959-downloadTag-download/default/d559b9cf/1699290380/z21-lan-protokoll-en.pdf. This document can not be part of these development repository since the copyright policy in this document.
+
+Differences between the identifiers in the protocol specification and the identifiers used here
+-----------------------------------------------------------------------------------------------
+
+While the "Z21 LAN Protocol Specification" document only introduces identifiers for communication between the devices, in a Python module we are also dealing with identifiers for data and functions at a higher level of abstraction.
+
+Used identifiers in "Z21 LAN Protocol Specification" are collected here in two enum classes: SndMsgName and RcvMsgName # TODO: Hier weiter machen
+
+Z21-LAN message identifiers, like LAN_GET_SERIAL_NUMBER will be used here identically with the exception of the first 4 letters. Using this class as instance, these 4 letters will be replaced by users class object name. So,as a example, the message name "LAN_GET_SERIAL_NUMBER" changes to "myZ21Object.GET_SERIAL_NUMBER" as constant value to specify the special message and "myZ21Object.get_serial_number()" as function call to process these message. Inside the class, of course, "self." is used instead "myZ21Object".
 
 Conceptual state:
 -----------------
@@ -25,30 +41,25 @@ The content and interfaces can still change considerably.
 
 ----------------------------------------------------------------------------
 
-License
-========
+Licence
+=======
 
-MIT License
+Used License: MIT Licence
 
-Copyright (c) 2023 Frank Herbrand, herbrand at gmx.de (fherb2 at github.com)
+Defining copyrights (c) and licence conditions, fundamental author of this file:
+Dr.-Ing. Frank Herbrand
+e-mail: herbrand at gmx.de 
+github.com user: fherb2
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+I, Frank Herbrand, hereby grant the licence for further use in the form of the generally known MIT licence, which was published in 2023 at the following location: https://de.wikipedia.org/wiki/MIT-Lizenz in the form specified by this site at that time:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Copyright (c) 2023 Dr.-Ing. Frank Herbrand
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 # #################################################################################################
