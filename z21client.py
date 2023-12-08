@@ -41,17 +41,17 @@ The content and interfaces can still change considerably.
 
 ----------------------------------------------------------------------------
 
-Licence
+License
 =======
 
-Used License: MIT Licence
+Used License: MIT License
 
-Defining copyrights (c) and licence conditions, fundamental author of this file:
+Defining copyrights (c) and license conditions, fundamental author of this file:
 Dr.-Ing. Frank Herbrand
 e-mail: herbrand at gmx.de 
 github.com user: fherb2
 
-I, Frank Herbrand, hereby grant the licence for further use in the form of the generally known MIT licence, which was published in 2023 at the following location: https://de.wikipedia.org/wiki/MIT-Lizenz in the form specified by this site at that time:
+I, Frank Herbrand, hereby grant the license for further use in the form of the generally known MIT license, which was published in 2023 at the following location: https://de.wikipedia.org/wiki/MIT-Lizenz in the form specified by this site at that time:
 
 Copyright (c) 2023 Dr.-Ing. Frank Herbrand
 
