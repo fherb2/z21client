@@ -138,7 +138,6 @@ class SndMsg:
                     sub_header:    int = None, # in case there is a sub header like X-Header (4 Byte)
                     db0:           int = None, # in case there is a fix data byte 0 (1 byte) 
                     ):
-        # following, we avoid a direct manipulation of private data
         self._name:str      = name
         """str: Name of the message as defined in Z21 LAN specification without the part 'LAN_'."""
         self._pack_callback = pack_callback
@@ -151,8 +150,9 @@ class SndMsg:
         """int: Some less messages have a third level specifier for the message named DB0."""
         self._last_data     = None  # last sent data
         """bytes: After call of 'stream(data:Any)' what calculates and give back a byte stream containing data, '_last_data' contains the used data."""
-    
-    # following, we avoid a direct manipulation of private data
+    #
+    # following, we avoid a direct manipulation of private data by using property functions
+    #
     @property
     def name(self) -> str:
         """str: Name of the message as defined in Z21 LAN specification without the part 'LAN_'."""
@@ -223,18 +223,18 @@ class RcvMsg:
                 sub_header:     int = None, # in case there is a sub header like X-Header (4 Byte)
                 db0:            int = None  # in case there is a fix data byte 0 (1 byte)
                 ):
-        # following, we avoid a direct manipulation of private data
         self._name              = name
         self._unpack_callback   = unpack_callback
         self._header            = header
         self._sub_header        = sub_header
         self._db0               = db0
         self.date: Any          = None  # last received data
-        
-    # following, we avoid a direct manipulation of private data
+    #
+    # following, we avoid a direct manipulation of private data by using property functions
+    #
     @property
     def save_if_matches(self, stream) -> bool:
-        pass
+        pass # TUDO: a lot!
 #                                                                                                 #
 #                                                                                                 # 
 # #################################################################################################
