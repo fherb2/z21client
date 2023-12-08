@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 #
-# Software Licence Conditions
+# Software License Conditions
 # ---------------------------
-# All licence information can be found in the following docstring of the module.
+# All license information can be found in the following docstring of the module.
 #
 # Hint for editing this source code:
 # ----------------------------------
@@ -11,7 +11,6 @@
 # software for automatic line feed for long lines. This is more simple than to
 # correct manual line feeds during changing of documentations texts.
 #
-# Thanks and best regards,
 # Frank
 # (fherb2 @ github.com)
 #
@@ -21,25 +20,31 @@
 Introduction
 ------------
 
-This module implements communication with the Roco/Fleischmann Z21 central and compatible devices.
+This module implements communication with the Roco/Fleischmann Z21 central station and compatible devices.
 
 It based on the published "Z21 LAN Protocol Specification", V1.13 (EN), by Roco/Fleischmann, downloaded from https://www.z21.eu/en/downloads/manuals at 3.12. 2023 by using the link https://www.z21.eu/media/Kwc_Basic_DownloadTag_Component/root-en-main_47-1652-959-downloadTag-download/default/d559b9cf/1699290380/z21-lan-protokoll-en.pdf. This document can not be part of these development repository since the copyright policy in this document.
 
 Differences between the identifiers in the protocol specification and the identifiers used here
 -----------------------------------------------------------------------------------------------
 
-While the "Z21 LAN Protocol Specification" document only introduces identifiers for communication between the devices, in a Python module we are also dealing with identifiers for data and functions at a higher level of abstraction.
+While the "Z21 LAN Protocol Specification" document only introduces identifiers for communication between the devices and the central station, in this Python module we are also dealing with identifiers for data and functions at a higher level of abstraction.
 
-Used identifiers in "Z21 LAN Protocol Specification" are collected here in two enum classes: SndMsgName and RcvMsgName # TODO: Hier weiter machen
+The communication methods for a Z21 client is summarized in the class:
 
-Z21-LAN message identifiers, like LAN_GET_SERIAL_NUMBER will be used here identically with the exception of the first 4 letters. Using this class as instance, these 4 letters will be replaced by users class object name. So,as a example, the message name "LAN_GET_SERIAL_NUMBER" changes to "myZ21Object.GET_SERIAL_NUMBER" as constant value to specify the special message and "myZ21Object.get_serial_number()" as function call to process these message. Inside the class, of course, "self." is used instead "myZ21Object".
+    * `Z21Client`.
+
+Used identifiers and structures in "Z21 LAN Protocol Specification" are collected here in two classes:
+
+    * `SndMsg` and 
+    * `RcvMsg`
+
+Z21-LAN message identifiers, like LAN_GET_SERIAL_NUMBER will be used here identically with the exception of the first 4 letters. Using this class as instance, these 4 letters will be replaced by users class object name. So, as a example, the message name "LAN_GET_SERIAL_NUMBER" changes to "myZ21SndMsgObject.GET_SERIAL_NUMBER" as constant value to specify the special message and "myZ21SndMsgObject.get_serial_number()" as function call to process these message.
 
 Conceptual state:
 -----------------
+Full conceptual development process in progress: The content and interfaces can still change considerably.
 
-The content and interfaces can still change considerably.
-
-----------------------------------------------------------------------------
+##########################################################
 
 License
 =======
@@ -61,171 +66,185 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
-
+#
 # #################################################################################################
 #                                                                                                 #
 # Imports                                                                                         #
 # -------                                                                                         #
 #                                                                                                 #
-# .................
 # Typing
+# ......
 #
-# Of course, Python doesn't check any typing. But to avoid mistakes and prepare
-# compatibility to PyPi for future.
+# Of course, Python doesn't check any typing. But to avoid mistakes and prepare compatibility to
+# PyPi, typing is part of the source here and a good feature to deliver good quality software.
 # 
-# typing has changed from 3.8 to 3.10; 3.9 was a transitional version for typing hints
-from typing import Union # to be save for python < 3.10 (so we don't use "type1 | type2")
 from typing import Any
-
+#
 try:
     from collections.abc import Callable
 except:
     from typing import Callable # for Python < 3.9
-    
+#
 from enum import Enum
 from enum import auto as enum_auto
-from enum import auto as enum_unique
-# .................
-#
-# Specials for class developing
-from dataclasses import dataclass
+#                                                                                                 #
 #                                                                                                 #
 # #################################################################################################
     
 
 # #################################################################################################
 #                                                                                                 #
-# Module main class                                                                               #
-# =================                                                                               #
+# Module main class: The Z21Client                                                                #
+# ================================                                                                #
 #                                                                                                 #
-class z21Client():
+class Z21Client:
     """z21 main class
     =================
-    
-    For some basic information about the module and the class, please, read the module documentation.
+    For some basic information about the module and the classes, please, read the module documentation.
 
     Conceptual state: The content and interfaces can still change considerably.
     """
+    # ##########################################################################################
+    #                                                                                          #
+    # INITIALIZER                                                                              #
+    # -----------                                                                              #
+    #                                                                                          #
     def __init__(self):
-        """Creator of the z21 main class
-
+        """Creator of the z21 client class
+        ----------------------------------
         Conceptual state: The content and interfaces can still change considerably.
         """
-        pass
-    
-    # ###########################################################################################
-    #
-    class SndMsg():
-        _name:str               = None
-        """private, str | None: Name of the message as defined in Z21 LAN specification without the part 'LAN_'."""
-        _pack_callback:Callable = None
-        """private, Callable | None: Function what converts data of the message into a byte stream."""
-        _header:int             = None
-        """private, int | None: Header as defined by Z21 documentation."""
-        _sub_header:int         = None
-        """private, int | None: Special Z21 messages has a second header specifier inside the data specified by the main header."""
-        _db0:int                = None
-        """private, int | None: Some less messages have a third level specifier for the message named DB0."""
-        _last_data              = None
-        """private, bytes | None: After call of 'stream(data:Any)' what calculates and give back a byte stream
-        containing data, '_last_data' contains the used data."""
-        
-        
-        def __init__(self,
-                     name:          str,        # Name of the message as defined in Z21 LAN specification
-                     pack_callback: Callable,   # function (pointer) to pack given data of a message as data stream
-                     header:        int,        # header of message
-                     sub_header:    int = None, # in case there is a sub header like X-Header (4 Byte)
-                     db0:           int = None, # in case there is a fix data byte 0 (1 byte) 
-                     ):
-            # following, we avoid a direct manipulation of private data
-            self._name          = name
-            self._pack_callback = pack_callback
-            self._header        = header
-            self._sub_header    = sub_header
-            self._db0           = db0
-            self._last_data     = None  # last sent data
-        
-        # following, we avoid a direct manipulation of private data
-        @property
-        def name(self) -> str:
-            return self._name
-        @property
-        def pack_callback(self) -> Callable:
-            return self._pack_callback
-        @property
-        def header(self) -> int:
-            return self._header
-        @property
-        def sub_header(self) -> int:
-            return self._sub_header
-        @property
-        def db0(self) -> int:
-            return self._db0
-        @property
-        def last_data(self) -> Any:
-            return self._last_data
+        pass # TODO: a lot of work
+    #                                                                                          #
+    # ##########################################################################################
+#                                                                                                 #
+#                                                                                                 #
+#                                                                                                 # 
+###################################################################################################
 
-        @property
-        def stream(self, data:Any) -> bytes:
-            self._last_data = data
-            byte_stream = (self.header & 0xFFFF).to_bytes(2, 'little')
-            if self.sub_header is not None:
-                byte_stream = (self.sub_header & 0xFFFF).to_bytes(2, 'little')
-            if self.db0 is not None:
-                byte_stream += (self.db0 & 0xFF).to_bytes(1, 'little')
-            byte_stream += self.pack_callback(data)
-            return len(byte_stream).to_bytes(2, 'little') + byte_stream
-        
-        @property 
-        def all(self) -> dict:
-            return {
-                "name": self.name(),
-                "pack_callback": self.pack_callback(),
-                "header": self.header(),
-                "sub_header": self.sub_header(),
-                "db0": self.db0(),
-                "last_data": self._last_data(),
-                "last_stream": self.stream(self._last_data)
-            }
-            
-    change following class like class SndMsg()
-
-    class RcvMsg():
-        def __int__(self,
-                    name:           str,        # Name of the message as defined in Z21 LAN specification
-                    unpack_callback:Callable,   # function (pointer) to unpack received data bytes
-                    header:         int,        # header of message
-                    sub_header:     int = None, # in case there is a sub header like X-Header (4 Byte)
-                    db0:            int = None  # in case there is a fix data byte 0 (1 byte)
+# #################################################################################################
+#                                                                                                 #
+# Module data class for send messages to a z21 central station                                    #
+# ============================================================                                    #
+#                                                                                                 #
+class SndMsg:
+    """Class SndMsg is a template for any message what we, as client, can send to a Z21 central station.
+    ----------------------------------------------------------------------------------------------------
+    """
+    def __init__(self,
+                    name:          str,        # Name of the message as defined in Z21 LAN specification
+                    pack_callback: Callable,   # function (pointer) to pack given data of a message as data stream
+                    header:        int,        # header of message
+                    sub_header:    int = None, # in case there is a sub header like X-Header (4 Byte)
+                    db0:           int = None, # in case there is a fix data byte 0 (1 byte) 
                     ):
-            # following, we avoid a direct manipulation of private data
-            self._name              = name
-            self._unpack_callback   = unpack_callback
-            self._header            = header
-            self._sub_header        = sub_header
-            self._db0               = db0
-            self.date: Any          = None  # last received data
-            
         # following, we avoid a direct manipulation of private data
-        @property
-        
-        def save_if_matches(self, stream) -> bool:
-            pass
-
-            
-            
-#                                                                                              # 
-################################################################################################
-
-################################################################################################
-#                                                                                              #
-# Helpers                                                                                      #
-# =======                                                                                      #
-#                                                                                              #
-        
+        self._name:str      = name
+        """str: Name of the message as defined in Z21 LAN specification without the part 'LAN_'."""
+        self._pack_callback = pack_callback
+        """Callable: Function what converts data of the message into a byte stream."""
+        self._header        = header
+        """int: Header as defined by Z21 documentation."""
+        self._sub_header    = sub_header
+        """int: Special Z21 messages has a second header specifier inside the data specified by the main header."""
+        self._db0           = db0
+        """int: Some less messages have a third level specifier for the message named DB0."""
+        self._last_data     = None  # last sent data
+        """bytes: After call of 'stream(data:Any)' what calculates and give back a byte stream containing data, '_last_data' contains the used data."""
     
-    
+    # following, we avoid a direct manipulation of private data
+    @property
+    def name(self) -> str:
+        """str: Name of the message as defined in Z21 LAN specification without the part 'LAN_'."""
+        return self._name
+    @property
+    def pack_callback(self) -> Callable:
+        """Callable: Function what converts data of the message into a byte stream."""
+        return self._pack_callback
+    @property
+    def header(self) -> int:
+        """int: Header as defined by Z21 documentation."""
+        return self._header
+    @property
+    def sub_header(self) -> int:
+        """int: Special Z21 messages has a second header specifier inside the data specified by the main header."""
+        return self._sub_header
+    @property
+    def db0(self) -> int:
+        """int: Some less messages have a third level specifier for the message named DB0."""
+        return self._db0
+    @property
+    def last_data(self) -> Any:
+        """bytes: After call of 'stream(data:Any)' what calculates and give back a byte stream containing data, '_last_data' contains the used data."""
+        return self._last_data
+    @property
+    def stream(self, data:Any) -> bytes:
+        """byte-stream: all data formated as byte stream with little endian order"""
+        self._last_data = data
+        byte_stream = (self.header & 0xFFFF).to_bytes(2, 'little')
+        if self.sub_header is not None:
+            byte_stream = (self.sub_header & 0xFFFF).to_bytes(2, 'little')
+        if self.db0 is not None:
+            byte_stream += (self.db0 & 0xFF).to_bytes(1, 'little')
+        byte_stream += self.pack_callback(data)
+        return len(byte_stream).to_bytes(2, 'little') + byte_stream
+    @property 
+    def all(self) -> dict:
+        """dict: Alle data of the object collected as dictionary. The datatype and content of the values is identically of the the direct access at these data."""
+        return {
+            "name": self.name(),
+            "pack_callback": self.pack_callback(),
+            "header": self.header(),
+            "sub_header": self.sub_header(),
+            "db0": self.db0(),
+            "last_data": self._last_data(),
+            "last_stream": self.stream(self._last_data)
+        }
+#                                                                                                 #
+#                                                                                                 # 
+# #################################################################################################
+
+
+# #################################################################################################
+#                                                                                                 #
+# Module data class for receive messages from a z21 central station                               #
+# =================================================================                               #
+#                                                                                                 #
+#change following class like class SndMsg()
+#
+class RcvMsg:
+    """Class SndMsg is a template for any message what we, as client, can send to a Z21 central station."""
+    #
+    #
+    def __int__(self,
+                name:           str,        # Name of the message as defined in Z21 LAN specification
+                unpack_callback:Callable,   # function (pointer) to unpack received data bytes
+                header:         int,        # header of message
+                sub_header:     int = None, # in case there is a sub header like X-Header (4 Byte)
+                db0:            int = None  # in case there is a fix data byte 0 (1 byte)
+                ):
+        # following, we avoid a direct manipulation of private data
+        self._name              = name
+        self._unpack_callback   = unpack_callback
+        self._header            = header
+        self._sub_header        = sub_header
+        self._db0               = db0
+        self.date: Any          = None  # last received data
+        
+    # following, we avoid a direct manipulation of private data
+    @property
+    def save_if_matches(self, stream) -> bool:
+        pass
+#                                                                                                 #
+#                                                                                                 # 
+# #################################################################################################
+
+
+# #################################################################################################
+#                                                                                                 #
+# Helpers                                                                                         #
+# =======                                                                                         #
+#                                                                                                 #  
 # maybe we don't need this, but it's a good listing ;-)  
 @enum_unique
 class SndMsgName(Enum):
@@ -331,8 +350,7 @@ class RcvMsgName(Enum):
     DECODER_GET_DESCRIPTION         = enum_auto()
     DECODER_SYSTEMSTATE_DATACHANGED = enum_auto()
     ZLINK_GET_HWINFO                = enum_auto()
-
-        
-#                                                                                              # 
-################################################################################################
+#                                                                                                 #      
+#                                                                                                 # 
+# #################################################################################################
   
