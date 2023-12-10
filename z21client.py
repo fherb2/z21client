@@ -85,8 +85,13 @@ try:
 except:
     from typing import Callable # for Python < 3.9
 #
+import time
+import asyncio
+import socket
 from enum import Enum
 from enum import auto as enum_auto
+from dataclasses import dataclass
+
 #                                                                                                 #
 #                                                                                                 #
 # #################################################################################################
@@ -114,41 +119,268 @@ class Z21Client:
         ----------------------------------
         Conceptual state: The content and interfaces can still change considerably.
         """
-        pass # TODO: a lot of work
+        # ##########################################################################################
+        #                                                                                          #
+        # Receive Data Household                                                                   #
+        #                                                                                          #
+        self.rcvData = {
+            """ Holds the last value received from Z21
+            ------------------------------------------
+            Values with value `None` are not yet initialized resp. waiting for new a new requested actualizing.
+            
+            To get an actualized value, send the related request and wait until the value is not more `None`. By sending the request the last value of the requested value will be set to `None`. So, the non-`None` state is the signal that this value is actualized related to the last request.
+            """
+            "serial_number":  None, 
+            "lock_code": None,
+            "hw_type_fw_version": None,
+            "function_state": None 
+            # Dictionary the holds all function addresses as int and its state as int
+            # --------------------------------------------------------------------------
+            # This variable is empty at beginning. In case any function state is received, the address an value will be added or the value will be actualized."""
+            
+            # TODO: Add all other values
+        }
+
+        
+        self.MSG_STRUC:dict = {
+            0x10:   {"name": "GET_SERIAL_NUMBER",   "callback": self._cb_uint32_le, "variable": "serial_number"},
+            0x18:   {"name": "GET_CODE",            "callback": self._cb_lock_code(), "variable": "lock_code"},
+            0x1A:   {"name": "GET_HWINFO",          "callback": self._cb_hw_sw, "variable": "hw_type_fw_version"},
+            0x40:   {
+                0x43: {"name": "X_TURNOUT_INFO",    "callback": self._cb_actualize_function_state, "variable": "function_state"},
+                0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": self._cb_dummy, "variable": "serial_number"},
+                0x61: {
+                    0x00: {"name": "X_BC_TRACK_POWER_OFF",  "callback": self._cb_dummy, "variable": "serial_number"},
+                    0x01: {"name": "X_BC_TRACK_POWER_ON",   "callback": self._cb_dummy, "variable": "serial_number"}
+                }
+            }
+        }
+        
+        self.rcv_data = self.rcvData()
+        self.shut_down_event = asyncio.Event()
+        self.udp_listener_task = asyncio.create_task(self.udp_rcv_task())
+        
+        # TODO: a lot of work
+
+
+        #                                                                                          #
+        # ##########################################################################################
+
+    #                                                                                                       #
+    # #######################################################################################################
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+    async def stop(self):
+        self.shut_down_event.set() # say udp listener task to finish
+        await asyncio.sleep(0.2) # give CPU time to the task to can finish
+        
+        
+    async def udp_rcv_task(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        print("Socked created")
+        sock.settimeout(0.001)
+        sock.bind(("127.0.0.1", 21105))
+        while not self.shut_down_event.is_set():
+            try:
+                sock.recv(1_000)
+                print("NO TIMEOUT")
+            except OSError as err:
+                if str(err) != "timed out":
+                    break
+            await asyncio.sleep(0.1) # get back some 
+        sock.close()
+        print("Socked closed")
+
+            
+    # ##########################################################################################
+    #                                                                                          #
+    # Process received data                                                                    #
+    # ---------------------                                                                    #
+    #    
+    
+    
+    # callback functions to process the data of each special Z21 reply
+    def _cb_dummy(self, data_bytes:bytes, variable:str):
+        """Does nothing. But eat the data."""
+        pass
+
+    def _cb_uint32_le(self, data_bytes:bytes, variable:str):
+        """Convert 32 bits in little endian to integer."""
+        self.rcvData[variable] = int.from_bytes(data_bytes[:4], byteorder='little')
+        
+    def _cb_lock_code(self, data_bytes:bytes, variable:str):
+        """Special replay to the locking of the central station
+        -------------------------------------------------------
+        Z21 start can be locked. This converts the lock state into a meaningful string."""
+        means = {
+            0x00: "Z21_NO_LOCK.  All features permitted",
+            0x01: "z21_START_LOCKED. „z21 start”: driving and switching is blocked",
+            0x02: "z21_START_UNLOCKED. „z21 start”: driving and switching is permitted"
+        }
+        self.rcvData[variable] = means[data_bytes[0]]
+        
+    def _cb_hw_sw(self, data_bytes:bytes, variable:str):
+        """Special reply to the Hardware and Firmware version numbers"""
+        hw = int.from_bytes(data_bytes[:4], byteorder='little')
+        sw = bcd_decode(data_bytes[4:], decimals = 2)
+        self.rcvData[variable] = f"Hardware-Version: {hw}, Software-Version: {sw}"
+        
+    def _cb_actualize_function_state(self, data_bytes:bytes, variable:str):
+        address = int.from_bytes(data_bytes[:2], byteorder='big')
+        value   = int.from_bytes(data_bytes[2])
+        variable[address]: value
+    
+    
+        
+    def _process_dataset(self, dataset_header:int, dataset_data:bytes):
+        # Since the Z21 API we can different levels of structured data.
+        # Following we crawl this structure and call the right callback method
+        # with the rest of data:
+        if dataset_header not in self.MSG_STRUC:
+            raise ValueError(f"Receive a Z21 Dataset with unknown header value.")
+        structure = self.MSG_STRUC[dataset_header]
+        if "name" not in structure:
+            # a sub-header (x-header) is following
+            sub_header = int.from_bytes(dataset_data[:2], byteorder='little')
+            if len(dataset_data) > 2:
+                dataset_data = dataset_data[2:]
+            else:
+                dataset_data = None
+            if sub_header not in structure:
+                raise ValueError(f"Receive a Z21 Dataset with unknown x-header value.")
+            sub_structure = structure[sub_header]
+            if "name" not in sub_structure:
+                # a sub-sub-header (DB0) is following
+                sub_sub_header = int.from_bytes(dataset_data[:1], byteorder='little')
+                if sub_sub_header not in sub_structure:
+                    raise ValueError(f"Receive a Z21 Dataset with unknown x-header value.")
+                if len(dataset_data) > 1:
+                    dataset_data = dataset_data[1:]
+                else:
+                    dataset_data = None
+                sub_sub_header["callback"](dataset_data, sub_sub_header["variable"])
+            else:
+                sub_header["callback"](dataset_data, sub_sub_header["variable"])
+        else:
+            dataset_header["callback"](dataset_data, sub_sub_header["variable"])
+        
+
+    def _proc_rcv_stream(self, udp_data_stream:bytes) -> None:
+        # One stream can contain more than one Z21 Dataset! So our stream mus be processed as loop.
+        stream = udp_data_stream.copy()
+        while len(stream) >= 4: # Z21 Dataset must be at least 4 bytes long
+            dataset_length = int.from_bytes(stream[:2], byteorder='little')
+            if dataset_length > len(stream):
+                raise ValueError(f"Length information in Z21 answer is wrong. Byte 0 and 1 say length={dataset_length}, but Z21 Dataset length={len(stream)}")
+            dataset_header = int.from_bytes(stream[2:4], byteorder='little')
+            dataset_data = stream[4:dataset_length]
+            stream = stream[dataset_length:]
+            self._process_dataset(dataset_header, dataset_data)
+            
+
     #                                                                                          #
     # ##########################################################################################
+    
+    
+    
+    # ##########################################################################################
+    #                                                                                          #
+    # MESSAGES                                                                                 #
+    # --------                                                                                 #
+    #                                                                                          #
+    @dataclass
+    class snd:
+        def get_serial_number(self):
+            self.send(0x10)
+        def get_code(self):
+            self.send(0x18)
+        def get_hwinfo(self):
+            self.send(0x1A)
+        def logoff(self):
+            self.send(0x30)
+        def x_get_version(self):
+            self.send(0x40, 0x21, 0x21)
+        def x_get_status(self):
+            self.send(0x40, 0x21, 0x24)
+        def x_set_track_power_off(self):
+            self.send(0x40, 0x21, 0x80)
+        def x_set_track_power_on(self):
+            self.send(0x40, 0x21, 0x81)
+        def x_dcc_read_register(self, register:int):
+            self.send(0x40, 0x22, 0x11, register)
+        def x_cv_read(self, cv_address:int):
+            self.send(0x40, 0x23, 0x11, cv_address)
+        def x_dcc_write_register(self, register:int, value:int):
+            self.send(0x40, 0x23, 0x11, (register, value))
+        def x_cv_write(self, cv_address:int, value:int):
+            self.send(0x40, 0x24, 0x12, (cv_address, value))
+        def x_mm_write_byte(self, register:int, value:int):
+            self.send(0x40, 0x24, 0xFF, (register, value))
+        def x_get_turnout_info(self, turnout_address:int):
+            self.send(0x40, 0x43, data=(turnout_address))
+            
+         
+            
+                                
+    #                                                                                          #
+    # ##########################################################################################
+    
+    def send(self,
+             header:int,
+             x_header:(int|None)   = None,
+             db0:(int|None)        = None,
+             data:Any                   = None
+            ):
+        pass
+    
 #                                                                                                 #
 #                                                                                                 #
 #                                                                                                 # 
 ###################################################################################################
 
+
+
+
 # #################################################################################################
 #                                                                                                 #
-# Module data class for send messages to a z21 central station                                    #
-# ============================================================                                    #
+# Class for send messages to a z21 central station                                                #
+# ================================================                                                #
 #                                                                                                 #
 class SndMsg:
-    """Class SndMsg is a template for any message what we, as client, can send to a Z21 central station.
+    """Class SndMsg is a template for all message what we, as client, can send to a Z21 central station.
     ----------------------------------------------------------------------------------------------------
     """
     def __init__(self,
                     name:          str,        # Name of the message as defined in Z21 LAN specification
                     pack_callback: Callable,   # function (pointer) to pack given data of a message as data stream
                     header:        int,        # header of message
-                    sub_header:    int = None, # in case there is a sub header like X-Header (4 Byte)
-                    db0:           int = None, # in case there is a fix data byte 0 (1 byte) 
+                    sub_header:    (int|None) = None, # in case there is a sub header like X-Header (4 Byte)
+                    db0:           (int|None) = None, # in case there is a fix data byte 0 (1 byte) 
                     ):
-        self._name:str      = name
+        self._name:str                  = name
         """str: Name of the message as defined in Z21 LAN specification without the part 'LAN_'."""
-        self._pack_callback = pack_callback
+        self._pack_callback:Callable    = pack_callback
         """Callable: Function what converts data of the message into a byte stream."""
-        self._header        = header
+        self._header:int                = header
         """int: Header as defined by Z21 documentation."""
-        self._sub_header    = sub_header
+        self._dataset_data:(bytes|None) = None
+        """bytes: data of a Z21 dataset transformed to a byte stream"""
+        self._sub_header:(int|None)     = sub_header
         """int: Special Z21 messages has a second header specifier inside the data specified by the main header."""
-        self._db0           = db0
+        self._db0:(int|None)            = db0
         """int: Some less messages have a third level specifier for the message named DB0."""
-        self._last_data     = None  # last sent data
+        self._last_data:(bytes|None)    = None  # last sent data
         """bytes: After call of 'stream(data:Any)' what calculates and give back a byte stream containing data, '_last_data' contains the used data."""
     #
     # following, we avoid a direct manipulation of private data by using property functions
@@ -177,9 +409,52 @@ class SndMsg:
     def last_data(self) -> Any:
         """bytes: After call of 'stream(data:Any)' what calculates and give back a byte stream containing data, '_last_data' contains the used data."""
         return self._last_data
-    @property
+    #
+    # methods which doesn't need parameters but get values back; will be handled like properties:
+    #
+    @property 
+    def all(self) -> dict:
+        """dict: All data of the object collected as dictionary. The datatype and content of the values are identically like a direct access at these data."""
+        return {
+            "name": self._name,
+            "pack_callback": self._pack_callback,
+            "header": self._header,
+            "sub_header": self._sub_header,
+            "db0": self._db0,
+            "last_data": self._last_data,
+            "last_stream": self.stream(self._last_data)
+        }
+    #
+    # Methods which (really) do data processing
+    # -----------------------------------------
+    #
+    # "to_dataset()"
+    # ..............
+    def _to_dataset(self):
+        """Converts any data stream into a Z21 data set."""
+        pass
+    #
+    # "x_to_data()"
+    # .............
+    def _x_to_data(self):
+        """Converts a Z21 X-Bus data frame into a Z21 data-set data stream.
+        -------------------------------------------------------------------
+        The result is a data stream, what will be used by _to_dataset() for the completely formatting to send to Z21."""
+        pass
+    #
+    # "loconet_to_data()"
+    # ...................
+    def _loconet_to_data(self):
+        """Converts a Z21 LocoNet data frame into a Z21 data-set data stream.
+        -------------------------------------------------------------------
+        The result is a data stream, what will be used by _to_dataset() for the completely formatting to send to Z21."""
+        pass
+
+    
+    
+    
     def stream(self, data:Any) -> bytes:
-        """byte-stream: all data formated as byte stream with little endian order"""
+        """byte-stream: all data formatted as a byte stream with little-endian order"""
         self._last_data = data
         byte_stream = (self.header & 0xFFFF).to_bytes(2, 'little')
         if self.sub_header is not None:
@@ -188,56 +463,11 @@ class SndMsg:
             byte_stream += (self.db0 & 0xFF).to_bytes(1, 'little')
         byte_stream += self.pack_callback(data)
         return len(byte_stream).to_bytes(2, 'little') + byte_stream
-    @property 
-    def all(self) -> dict:
-        """dict: Alle data of the object collected as dictionary. The datatype and content of the values is identically of the the direct access at these data."""
-        return {
-            "name": self.name(),
-            "pack_callback": self.pack_callback(),
-            "header": self.header(),
-            "sub_header": self.sub_header(),
-            "db0": self.db0(),
-            "last_data": self._last_data(),
-            "last_stream": self.stream(self._last_data)
-        }
-#                                                                                                 #
+                                                                                                 #
 #                                                                                                 # 
 # #################################################################################################
 
 
-# #################################################################################################
-#                                                                                                 #
-# Module data class for receive messages from a z21 central station                               #
-# =================================================================                               #
-#                                                                                                 #
-#change following class like class SndMsg()
-#
-class RcvMsg:
-    """Class SndMsg is a template for any message what we, as client, can send to a Z21 central station."""
-    #
-    #
-    def __int__(self,
-                name:           str,        # Name of the message as defined in Z21 LAN specification
-                unpack_callback:Callable,   # function (pointer) to unpack received data bytes
-                header:         int,        # header of message
-                sub_header:     int = None, # in case there is a sub header like X-Header (4 Byte)
-                db0:            int = None  # in case there is a fix data byte 0 (1 byte)
-                ):
-        self._name              = name
-        self._unpack_callback   = unpack_callback
-        self._header            = header
-        self._sub_header        = sub_header
-        self._db0               = db0
-        self.date: Any          = None  # last received data
-    #
-    # following, we avoid a direct manipulation of private data by using property functions
-    #
-    @property
-    def save_if_matches(self, stream) -> bool:
-        pass # TUDO: a lot!
-#                                                                                                 #
-#                                                                                                 # 
-# #################################################################################################
 
 
 # #################################################################################################
@@ -245,112 +475,27 @@ class RcvMsg:
 # Helpers                                                                                         #
 # =======                                                                                         #
 #                                                                                                 #  
-# maybe we don't need this, but it's a good listing ;-)  
-@enum_unique
-class SndMsgName(Enum):
-    GET_SERIAL_NUMBER               = enum_auto()
-    GET_CODE                        = enum_auto()
-    GET_HWINFO                      = enum_auto()
-    LOGOFF                          = enum_auto()
-    X_GET_VERSION                   = enum_auto()
-    X_GET_STATUS                    = enum_auto()
-    X_SET_TRACK_POWER_OFF           = enum_auto()
-    X_SET_TRACK_POWER_ON            = enum_auto()
-    X_DCC_READ_REGISTER             = enum_auto()
-    X_CV_READ                       = enum_auto()
-    X_DCC_WRITE_REGISTER            = enum_auto()
-    X_CV_WRITE                      = enum_auto()
-    X_MM_WRITE_BYTE                 = enum_auto()
-    X_GET_TURNOUT_INFO              = enum_auto()
-    X_GET_EXT_ACCESSORY_INFO        = enum_auto()
-    X_SET_TURNOUT                   = enum_auto()
-    X_SET_EXT_ACCESSORY             = enum_auto()
-    X_SET_STOP                      = enum_auto()
-    X_SET_LOCO_E_STOP               = enum_auto()
-    X_PURGE_LOCO                    = enum_auto()
-    X_GET_LOCO_INFO                 = enum_auto()
-    X_SET_LOCO_DRIVE                = enum_auto()
-    X_SET_LOCO_FUNCTION             = enum_auto()
-    X_SET_LOCO_FUNCTION_GROUP       = enum_auto()
-    X_SET_LOCO_BINARY_STATE         = enum_auto()
-    X_CV_POM_WRITE_BIT              = enum_auto()
-    X_CV_POM_WRITE_BYTE             = enum_auto()
-    X_CV_POM_READ_BYTE              = enum_auto()
-    X_CV_POM_ACCESSORY_WRITE_BYTE   = enum_auto()
-    X_CV_POM_ACCESSORY_WRITE_BIT    = enum_auto()
-    X_CV_POM_ACCESSORY_READ_BYTE    = enum_auto()
-    X_GET_FIRMWARE_VERSION          = enum_auto()
-    SET_BROADCASTFLAGS              = enum_auto()
-    GET_BROADCASTFLAGS              = enum_auto()
-    GET_LOCOMODE                    = enum_auto()
-    SET_LOCOMODE                    = enum_auto()
-    GET_TURNOUTMODE                 = enum_auto()
-    SET_TURNOUTMODE                 = enum_auto()
-    RMBUS_GETDATA                   = enum_auto()
-    RMBUS_PROGRAMMODULE             = enum_auto()
-    SYSTEMSTATE_GETDATA             = enum_auto()
-    RAILCOM_GETDATA                 = enum_auto()
-    LOCONET_FROM_LAN                = enum_auto()
-    LOCONET_DISPATCH_ADDR           = enum_auto()
-    LOCONET_DETECTOR                = enum_auto()
-    CAN_DETECTOR                    = enum_auto()
-    CAN_DEVICE_GET_DESCRIPTION      = enum_auto()
-    CAN_DEVICE_SET_DESCRIPTION      = enum_auto()
-    CAN_BOOSTER_SET_TRACKPOWER      = enum_auto()
-    FAST_CLOCK_CONTROL              = enum_auto()
-    FAST_CLOCK_SETTINGS_GET         = enum_auto()
-    FAST_CLOCK_SETTINGS_SET         = enum_auto()
-    BOOSTER_SET_POWER               = enum_auto()
-    BOOSTER_GET_DESCRIPTION         = enum_auto()
-    BOOSTER_SET_DESCRIPTION         = enum_auto()
-    BOOSTER_SYSTEMSTATE_GETDATA     = enum_auto()
-    DECODER_GET_DESCRIPTION         = enum_auto()
-    DECODER_SET_DESCRIPTION         = enum_auto()
-    DECODER_SYSTEMSTATE_GETDATA     = enum_auto()
-    ZLINK_GET_HWINFO                = enum_auto()
 
-@enum_unique
-class RcvMsgName(Enum):
-    GET_SERIAL_NUMBER               = enum_auto()
-    GET_CODE                        = enum_auto()
-    GET_HWINFO                      = enum_auto()
-    X_TURNOUT_INFO                  = enum_auto()
-    X_EXT_ACCESSORY_INFO            = enum_auto()
-    X_BC_TRACK_POWER_OFFX           = enum_auto()
-    X_BC_TRACK_POWER_ON             = enum_auto()
-    X_BC_PROGRAMMING_MODE           = enum_auto()
-    X_BC_TRACK_SHORT_CIRCUIT        = enum_auto()
-    X_CV_NACK_SC                    = enum_auto()
-    X_CV_NACK                       = enum_auto()
-    X_UNKNOWN_COMMAND               = enum_auto()
-    X_STATUS_CHANGED                = enum_auto()
-    X_GET_VERSION                   = enum_auto()
-    X_CV_RESULT                     = enum_auto()
-    X_BC_STOPPED                    = enum_auto()
-    X_LOCO_INFO                     = enum_auto()
-    X_GET_FIRMWARE_VERSION          = enum_auto()
-    GET_BROADCASTFLAGS              = enum_auto()
-    GET_LOCOMODE                    = enum_auto()
-    GET_TURNOUTMODE                 = enum_auto()
-    RMBUS_DATACHANGED               = enum_auto()
-    SYSTEMSTATE_DATACHANGED         = enum_auto()
-    RAILCOM_DATACHANGED             = enum_auto()
-    LOCONET_Z21_RX                  = enum_auto()
-    LOCONET_Z21_TX                  = enum_auto()
-    LOCONET_FROM_LAN                = enum_auto()
-    LOCONET_DISPATCH_ADDR           = enum_auto()
-    LOCONET_DETECTOR                = enum_auto()
-    CAN_DETECTOR                    = enum_auto()
-    CAN_DEVICE_GET_DESCRIPTION      = enum_auto()
-    CAN_BOOSTER_SYSTEMSTATE_CHGD    = enum_auto()
-    FAST_CLOCK_DATA                 = enum_auto()
-    FAST_CLOCK_SETTINGS_GET         = enum_auto()
-    BOOSTER_GET_DESCRIPTION         = enum_auto()
-    BOOSTER_SYSTEMSTATE_DATACHANGED = enum_auto()
-    DECODER_GET_DESCRIPTION         = enum_auto()
-    DECODER_SYSTEMSTATE_DATACHANGED = enum_auto()
-    ZLINK_GET_HWINFO                = enum_auto()
+def bcd_decode(data:bytes, decimals:int = 0):
+    """Decode a BCD number with decimal point"""
+    res = 0
+    for n, b in enumerate(reversed(data)):
+        res += (b & 0x0F) * 10 ** (n * 2 - decimals)
+        res += (b >> 4) * 10 ** (n * 2 + 1 - decimals)
+    return res
+
 #                                                                                                 #      
 #                                                                                                 # 
 # #################################################################################################
   
+  
+async def main():
+    """Only for tests during development"""
+    z21 = Z21Client()  
+    await asyncio.sleep(15)
+    await z21.stop()    
+    exit(0)
+    
+  
+if __name__ == '__main__':
+    asyncio.run(main())
