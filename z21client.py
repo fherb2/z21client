@@ -66,7 +66,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
-#
+
 # #################################################################################################
 #                                                                                                 #
 # Imports                                                                                         #
@@ -109,53 +109,54 @@ class Z21Client:
 
     Conceptual state: The content and interfaces can still change considerably.
     """
-    # ##########################################################################################
-    #                                                                                          #
-    # INITIALIZER                                                                              #
-    # -----------                                                                              #
-    #                                                                                          #
+    # #############################################################################################
+    #                                                                                             #
+    # INITIALIZER                                                                                 #
+    # -----------                                                                                 #
+    #                                                                                             #
     def __init__(self):
         """Creator of the z21 client class
         ----------------------------------
         Conceptual state: The content and interfaces can still change considerably.
         """
-        # ##########################################################################################
-        #                                                                                          #
-        # Receive Data Household                                                                   #
-        #                                                                                          #
+        # #########################################################################################
+        #                                                                                         #
+        # Receive Data Household                                                                  #
+        # ......................                                                                  #
         self.rcvData = {
             """ Holds the last value received from Z21
             ------------------------------------------
-            Values with value `None` are not yet initialized resp. waiting for new a new requested actualizing.
+            Values with value `None` are not yet initialized resp. waiting for a new requested actualizing.
             
             To get an actualized value, send the related request and wait until the value is not more `None`. By sending the request the last value of the requested value will be set to `None`. So, the non-`None` state is the signal that this value is actualized related to the last request.
             """
             "serial_number":  None, 
             "lock_code": None,
             "hw_type_fw_version": None,
-            "function_state": None 
-            # Dictionary the holds all function addresses as int and its state as int
-            # --------------------------------------------------------------------------
-            # This variable is empty at beginning. In case any function state is received, the address an value will be added or the value will be actualized."""
+            "turnout_state": None # memorized as dictionary with elements:    address_number: state
             
             # TODO: Add all other values
-        }
-
-        
+            }
+        #
+        #
+        # Structure to call the right data stream processing function depending headers automatically
+        # ...........................................................................................        
         self.MSG_STRUC:dict = {
             0x10:   {"name": "GET_SERIAL_NUMBER",   "callback": self._cb_uint32_le, "variable": "serial_number"},
-            0x18:   {"name": "GET_CODE",            "callback": self._cb_lock_code(), "variable": "lock_code"},
+            0x18:   {"name": "GET_CODE",            "callback": self._cb_lock_code, "variable": "lock_code"},
             0x1A:   {"name": "GET_HWINFO",          "callback": self._cb_hw_sw, "variable": "hw_type_fw_version"},
             0x40:   {
-                0x43: {"name": "X_TURNOUT_INFO",    "callback": self._cb_actualize_function_state, "variable": "function_state"},
+                0x43: {"name": "X_TURNOUT_INFO",    "callback": self._cb_actualize_turnout_state, "variable": "turnout_state"},
                 0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": self._cb_dummy, "variable": "serial_number"},
                 0x61: {
                     0x00: {"name": "X_BC_TRACK_POWER_OFF",  "callback": self._cb_dummy, "variable": "serial_number"},
                     0x01: {"name": "X_BC_TRACK_POWER_ON",   "callback": self._cb_dummy, "variable": "serial_number"}
+                    }
                 }
             }
-        }
-        
+        #
+        #
+        #
         self.rcv_data = self.rcvData()
         self.shut_down_event = asyncio.Event()
         self.udp_listener_task = asyncio.create_task(self.udp_rcv_task())
@@ -165,60 +166,24 @@ class Z21Client:
 
         #                                                                                          #
         # ##########################################################################################
+    #                                                                                              #
+    #                                                                                              #
+    # ##############################################################################################
+        
 
-    #                                                                                                       #
-    # #######################################################################################################
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-    async def stop(self):
-        self.shut_down_event.set() # say udp listener task to finish
-        await asyncio.sleep(0.2) # give CPU time to the task to can finish
-        
-        
-    async def udp_rcv_task(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        print("Socked created")
-        sock.settimeout(0.001)
-        sock.bind(("127.0.0.1", 21105))
-        while not self.shut_down_event.is_set():
-            try:
-                sock.recv(1_000)
-                print("NO TIMEOUT")
-            except OSError as err:
-                if str(err) != "timed out":
-                    break
-            await asyncio.sleep(0.1) # get back some 
-        sock.close()
-        print("Socked closed")
-
-            
-    # ##########################################################################################
-    #                                                                                          #
-    # Process received data                                                                    #
-    # ---------------------                                                                    #
-    #    
-    
-    
-    # callback functions to process the data of each special Z21 reply
-    def _cb_dummy(self, data_bytes:bytes, variable:str):
-        """Does nothing. But eat the data."""
+    # ##############################################################################################
+    #                                                                                              #
+    # Data stream processing callback functions for self.MSG_STRUC                                 #
+    # ------------------------------------------------------------                                 #
+    #                                          
+    def _cb_dummy(self, data_bytes:bytes, variable:str=None):
+        """Does nothing. But eat the data bytes."""
         pass
-
+    #
     def _cb_uint32_le(self, data_bytes:bytes, variable:str):
         """Convert 32 bits in little endian to integer."""
         self.rcvData[variable] = int.from_bytes(data_bytes[:4], byteorder='little')
-        
+    #
     def _cb_lock_code(self, data_bytes:bytes, variable:str):
         """Special replay to the locking of the central station
         -------------------------------------------------------
@@ -229,20 +194,27 @@ class Z21Client:
             0x02: "z21_START_UNLOCKED. „z21 start”: driving and switching is permitted"
         }
         self.rcvData[variable] = means[data_bytes[0]]
-        
+    #
     def _cb_hw_sw(self, data_bytes:bytes, variable:str):
         """Special reply to the Hardware and Firmware version numbers"""
         hw = int.from_bytes(data_bytes[:4], byteorder='little')
         sw = bcd_decode(data_bytes[4:], decimals = 2)
         self.rcvData[variable] = f"Hardware-Version: {hw}, Software-Version: {sw}"
-        
-    def _cb_actualize_function_state(self, data_bytes:bytes, variable:str):
+    #
+    def _cb_actualize_turnout_state(self, data_bytes:bytes, variable:str):
         address = int.from_bytes(data_bytes[:2], byteorder='big')
         value   = int.from_bytes(data_bytes[2])
         variable[address]: value
-    
-    
+    #                                                                                              #
+    #                                                                                              #
+    # ##############################################################################################
         
+
+    # ##############################################################################################
+    #                                                                                              #
+    # Data stream processing                                                                       #
+    # ......................                                                                       #
+    #                                                                                              #
     def _process_dataset(self, dataset_header:int, dataset_data:bytes):
         # Since the Z21 API we can different levels of structured data.
         # Following we crawl this structure and call the right callback method
@@ -274,6 +246,44 @@ class Z21Client:
                 sub_header["callback"](dataset_data, sub_sub_header["variable"])
         else:
             dataset_header["callback"](dataset_data, sub_sub_header["variable"])
+    #                                                                                              #
+    #                                                                                              #
+    # ##############################################################################################
+      
+        
+    # ##############################################################################################   
+    #                                                                                              #
+    # UDP Listener task as async process to be compatible with micro-controllers                   #
+    # --------------------------------------------------------------------------                   #
+    #                                                                                              #
+    # stop signal from main program
+    async def stop(self):
+        self.shut_down_event.set() # say udp listener task to finish
+        await asyncio.sleep(0.2) # give CPU time to the task to can finish
+    #
+    # UDP Listener task function   
+    async def udp_rcv_task(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        print("Socked created")
+        sock.settimeout(0.001)
+        sock.bind(("127.0.0.1", 21105))
+        while not self.shut_down_event.is_set():
+            try:
+                sock.recv(1_000)
+                print("NO TIMEOUT")
+            except OSError as err:
+                if str(err) != "timed out":
+                    break
+            await asyncio.sleep(0.1) # get back some 
+        sock.close()
+        print("Socked closed")
+    #                                                                                       #
+    # #######################################################################################
+            
+    
+    
+    
+        
         
 
     def _proc_rcv_stream(self, udp_data_stream:bytes) -> None:
