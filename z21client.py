@@ -119,188 +119,218 @@ class Z21Client:
         ----------------------------------
         Conceptual state: The content and interfaces can still change considerably.
         """
-        # #########################################################################################
-        #                                                                                         #
-        # Receive Data Household                                                                  #
-        # ......................                                                                  #
-        self.rcvData = {
+        pass # TODO
+    #                                                                                              #
+    # ##############################################################################################
+
+
+    # #############################################################################################
+    #                                                                                             #
+    # Receive Data Household incl. frame processing                                               #
+    # .............................................                                               #
+    class Rcv:
+        """ Rcv contains received data from Z21 server station and all to processes to get these
+        ----------------------------------------------------------------------------------------
+        """
+        def __init__(self):
+            self._data = {
+                """ Holds the last value received from Z21
+                ------------------------------------------
+                Values with value `None` are not yet initialized resp. waiting for a new requested actualizing.
+                
+                To get an actualized value, send the related request and wait until the value is not more `None`. By sending the request the last value of the requested value will be set to `None`. So, the non-`None` state is the signal that this value is actualized related to the last request.
+                """
+                "serial_number":  None, 
+                "lock_code": None,
+                "hw_type_fw_version": None,
+                "turnout_state": None # memorized as dictionary with elements:    address_number: state
+                
+                # TODO: Add all other values
+                }
+            #
+            # Structure to call the right data stream processing function depending headers automatically
+            # ...........................................................................................        
+            self._MSG_STRUC = {
+            """ Structure to process incoming messages
+            """
+                0x10:   {"name": "GET_SERIAL_NUMBER",   "callback": self._cb_uint32_le, "variable": "serial_number"},
+                0x18:   {"name": "GET_CODE",            "callback": self._cb_lock_code, "variable": "lock_code"},
+                0x1A:   {"name": "GET_HWINFO",          "callback": self._cb_hw_sw, "variable": "hw_type_fw_version"},
+                0x40:   {
+                    0x43: {"name": "X_TURNOUT_INFO",    "callback": self._cb_actualize_turnout_state, "variable": "turnout_state"},
+                    0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": self._cb_dummy, "variable": "serial_number"},
+                    0x61: {
+                        0x00: {"name": "X_BC_TRACK_POWER_OFF",  "callback": self._cb_dummy, "variable": "serial_number"},
+                        0x01: {"name": "X_BC_TRACK_POWER_ON",   "callback": self._cb_dummy, "variable": "serial_number"}
+                        }
+                    }
+                }
+                # TODO: a lot of work
+            #
+            #  Start the async task
+            self._udp_rcv_task = self.Udp_rcv_task(self._MSG_STRUC, self.data)
+        #
+        @property
+        def data(self):                
             """ Holds the last value received from Z21
             ------------------------------------------
             Values with value `None` are not yet initialized resp. waiting for a new requested actualizing.
             
             To get an actualized value, send the related request and wait until the value is not more `None`. By sending the request the last value of the requested value will be set to `None`. So, the non-`None` state is the signal that this value is actualized related to the last request.
             """
-            "serial_number":  None, 
-            "lock_code": None,
-            "hw_type_fw_version": None,
-            "turnout_state": None # memorized as dictionary with elements:    address_number: state
-            
-            # TODO: Add all other values
+            return self._data
+        #
+        def reset_date(self, name:str):
+            """Sets a date to the state "unknown" (`None`)
+            ----------------------------------------------
+            This is used by requesting a new value. With a reset, we memorize, that the new and actually value is not yet received.
+
+            Args:
+                name (str): Key of the `data` dictionary
+            """
+            self._data[name] = None   
+        #
+        def shutdown(self):
+            """Command to shut down the UDP listening process
+            -------------------------------------------------
+
+            After this no data will be received from the Z21 station. This is used to shut down a process during finishing the application.
+            """
+            self._udp_rcv_task.stop_task()
+        #
+        #
+        # Data stream processing callback functions for _MSG_STRUC
+        # ........................................................
+        #                                          
+        def _cb_dummy(self, data_bytes:bytes, variable:str=None):
+            """Callback function to process incoming data from Z21 station: Does nothing. But eat the data bytes.
+            -----------------------------------------------------------------------------------------------------
+            """
+            pass
+        #
+        def _cb_uint32_le(self, data_bytes:bytes, variable:str):
+            """Callback function to process incoming data from Z21 station: Convert 32 bits in little endian to integer.
+            ------------------------------------------------------------------------------------------------------------
+            """
+            self.rcvData[variable] = int.from_bytes(data_bytes[:4], byteorder='little')
+        #
+        def _cb_lock_code(self, data_bytes:bytes, variable:str):
+            """Callback function to process incoming data from Z21 station: Special replay to the locking of the central station
+            --------------------------------------------------------------------------------------------------------------
+            Z21 start can be locked. This converts the lock state into a meaningful string."""
+            means = {
+                0x00: "Z21_NO_LOCK.  All features permitted",
+                0x01: "z21_START_LOCKED. „z21 start”: driving and switching is blocked",
+                0x02: "z21_START_UNLOCKED. „z21 start”: driving and switching is permitted"
             }
+            self.rcvData[variable] = means[data_bytes[0]]
+        #
+        def _cb_hw_sw(self, data_bytes:bytes, variable:str):
+            """Callback function to process incoming data from Z21 station: Special reply to the Hardware and Firmware version numbers
+            -------------------------------------------------------------------------------------------------
+            """
+            hw = int.from_bytes(data_bytes[:4], byteorder='little')
+            sw = bcd_decode(data_bytes[4:], decimals = 2)
+            self.rcvData[variable] = f"Hardware-Version: {hw}, Software-Version: {sw}"
+        #
+        def _cb_actualize_turnout_state(self, data_bytes:bytes, variable:str):
+            address = int.from_bytes(data_bytes[:2], byteorder='big')
+            value   = int.from_bytes(data_bytes[2])
+            variable[address]: value
         #
         #
-        # Structure to call the right data stream processing function depending headers automatically
-        # ...........................................................................................        
-        self.MSG_STRUC:dict = {
-            0x10:   {"name": "GET_SERIAL_NUMBER",   "callback": self._cb_uint32_le, "variable": "serial_number"},
-            0x18:   {"name": "GET_CODE",            "callback": self._cb_lock_code, "variable": "lock_code"},
-            0x1A:   {"name": "GET_HWINFO",          "callback": self._cb_hw_sw, "variable": "hw_type_fw_version"},
-            0x40:   {
-                0x43: {"name": "X_TURNOUT_INFO",    "callback": self._cb_actualize_turnout_state, "variable": "turnout_state"},
-                0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": self._cb_dummy, "variable": "serial_number"},
-                0x61: {
-                    0x00: {"name": "X_BC_TRACK_POWER_OFF",  "callback": self._cb_dummy, "variable": "serial_number"},
-                    0x01: {"name": "X_BC_TRACK_POWER_ON",   "callback": self._cb_dummy, "variable": "serial_number"}
-                    }
-                }
-            }
-        #
-        #
-        #
-        self.rcv_data = self.rcvData()
-        self.shut_down_event = asyncio.Event()
-        self.udp_listener_task = asyncio.create_task(self.udp_rcv_task())
-        
-        # TODO: a lot of work
-
-
-        #                                                                                          #
-        # ##########################################################################################
-    #                                                                                              #
-    #                                                                                              #
-    # ##############################################################################################
-        
-
-    # ##############################################################################################
-    #                                                                                              #
-    # Data stream processing callback functions for self.MSG_STRUC                                 #
-    # ------------------------------------------------------------                                 #
-    #                                          
-    def _cb_dummy(self, data_bytes:bytes, variable:str=None):
-        """Does nothing. But eat the data bytes."""
-        pass
-    #
-    def _cb_uint32_le(self, data_bytes:bytes, variable:str):
-        """Convert 32 bits in little endian to integer."""
-        self.rcvData[variable] = int.from_bytes(data_bytes[:4], byteorder='little')
-    #
-    def _cb_lock_code(self, data_bytes:bytes, variable:str):
-        """Special replay to the locking of the central station
-        -------------------------------------------------------
-        Z21 start can be locked. This converts the lock state into a meaningful string."""
-        means = {
-            0x00: "Z21_NO_LOCK.  All features permitted",
-            0x01: "z21_START_LOCKED. „z21 start”: driving and switching is blocked",
-            0x02: "z21_START_UNLOCKED. „z21 start”: driving and switching is permitted"
-        }
-        self.rcvData[variable] = means[data_bytes[0]]
-    #
-    def _cb_hw_sw(self, data_bytes:bytes, variable:str):
-        """Special reply to the Hardware and Firmware version numbers"""
-        hw = int.from_bytes(data_bytes[:4], byteorder='little')
-        sw = bcd_decode(data_bytes[4:], decimals = 2)
-        self.rcvData[variable] = f"Hardware-Version: {hw}, Software-Version: {sw}"
-    #
-    def _cb_actualize_turnout_state(self, data_bytes:bytes, variable:str):
-        address = int.from_bytes(data_bytes[:2], byteorder='big')
-        value   = int.from_bytes(data_bytes[2])
-        variable[address]: value
-    #                                                                                              #
-    #                                                                                              #
-    # ##############################################################################################
-        
-
-    # ##############################################################################################
-    #                                                                                              #
-    # Data stream processing                                                                       #
-    # ......................                                                                       #
-    #                                                                                              #
-    def _process_dataset(self, dataset_header:int, dataset_data:bytes):
-        # Since the Z21 API we can different levels of structured data.
-        # Following we crawl this structure and call the right callback method
-        # with the rest of data:
-        if dataset_header not in self.MSG_STRUC:
-            raise ValueError(f"Receive a Z21 Dataset with unknown header value.")
-        structure = self.MSG_STRUC[dataset_header]
-        if "name" not in structure:
-            # a sub-header (x-header) is following
-            sub_header = int.from_bytes(dataset_data[:2], byteorder='little')
-            if len(dataset_data) > 2:
-                dataset_data = dataset_data[2:]
-            else:
-                dataset_data = None
-            if sub_header not in structure:
-                raise ValueError(f"Receive a Z21 Dataset with unknown x-header value.")
-            sub_structure = structure[sub_header]
-            if "name" not in sub_structure:
-                # a sub-sub-header (DB0) is following
-                sub_sub_header = int.from_bytes(dataset_data[:1], byteorder='little')
-                if sub_sub_header not in sub_structure:
-                    raise ValueError(f"Receive a Z21 Dataset with unknown x-header value.")
-                if len(dataset_data) > 1:
-                    dataset_data = dataset_data[1:]
+        # Processing an incoming udp stream
+        # .................................
+        def _proc_rcv_stream(self, udp_data_stream:bytes) -> None:
+            # One stream can contain more than one Z21 Dataset! So our stream mus be processed as loop.
+            stream = udp_data_stream.copy()
+            while len(stream) >= 4: # Z21 Dataset must be at least 4 bytes long
+                dataset_length = int.from_bytes(stream[:2], byteorder='little')
+                if dataset_length > len(stream):
+                    raise ValueError(f"Length information in Z21 answer is wrong. Byte 0 and 1 say length={dataset_length}, but Z21 Dataset length={len(stream)}")
+                dataset_header = int.from_bytes(stream[2:4], byteorder='little')
+                dataset_data = stream[4:dataset_length]
+                stream = stream[dataset_length:]
+                self._process_dataset(dataset_header, dataset_data)
+                # Since the Z21 API we can different levels of structured data.
+                # Following we crawl this structure and call the right callback method
+                # with the rest of data:
+                if dataset_header not in self.MSG_STRUC:
+                    raise ValueError(f"Receive a Z21 Dataset with unknown header value.")
+                structure = self.MSG_STRUC[dataset_header]
+                if "name" not in structure:
+                    # a sub-header (x-header) is following
+                    sub_header = int.from_bytes(dataset_data[:2], byteorder='little')
+                    if len(dataset_data) > 2:
+                        dataset_data = dataset_data[2:]
+                    else:
+                        dataset_data = None
+                    if sub_header not in structure:
+                        raise ValueError(f"Receive a Z21 Dataset with unknown x-header value.")
+                    sub_structure = structure[sub_header]
+                    if "name" not in sub_structure:
+                        # a sub-sub-header (DB0) is following
+                        sub_sub_header = int.from_bytes(dataset_data[:1], byteorder='little')
+                        if sub_sub_header not in sub_structure:
+                            raise ValueError(f"Receive a Z21 Dataset with unknown x-header value.")
+                        if len(dataset_data) > 1:
+                            dataset_data = dataset_data[1:]
+                        else:
+                            dataset_data = None
+                        sub_sub_header["callback"](dataset_data, sub_sub_header["variable"])
+                    else:
+                        sub_header["callback"](dataset_data, sub_sub_header["variable"])
                 else:
-                    dataset_data = None
-                sub_sub_header["callback"](dataset_data, sub_sub_header["variable"])
-            else:
-                sub_header["callback"](dataset_data, sub_sub_header["variable"])
-        else:
-            dataset_header["callback"](dataset_data, sub_sub_header["variable"])
+                    dataset_header["callback"](dataset_data, sub_sub_header["variable"])
+        #
+        #
+        #
+        # UDP Listener task as async process to be compatible with micro-controllers
+        # ..........................................................................
+        #
+        class Udp_rcv_task:
+            def __init__(self, msg_struct:dict, data:dict):
+                self._shut_down_event = asyncio.Event()
+                self._udp_listener_task = asyncio.create_task(self._task_proc(msg_struct, data))
+            #
+            # task function   
+            async def _task_proc(self, msg_struct:dict, data:dict):
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                print("Socked created")
+                sock.settimeout(0.001)
+                sock.bind(("127.0.0.1", 21105))
+                while not self._shut_down_event.is_set():
+                    try:
+                        sock.recv(1_000)
+                        print("NO TIMEOUT")
+                        # ############
+                        # TODO: This is the place to process the data
+                        # ############
+                    except OSError as err:
+                        if str(err) != "timed out":
+                            break
+                    await asyncio.sleep(0.1) # get back some 
+                sock.close()
+                print("Socked closed")
+            #
+            # stop signal to finish the task
+            async def stop_task(self):
+                self._shut_down_event.set() # say udp listener task to finish
+                await asyncio.sleep(0.2) # give CPU time to the task to can finish
+        #
+        #                                                                                       #
+        # #######################################################################################
+
+
+
     #                                                                                              #
     #                                                                                              #
     # ##############################################################################################
-      
-        
-    # ##############################################################################################   
-    #                                                                                              #
-    # UDP Listener task as async process to be compatible with micro-controllers                   #
-    # --------------------------------------------------------------------------                   #
-    #                                                                                              #
-    # stop signal from main program
-    async def stop(self):
-        self.shut_down_event.set() # say udp listener task to finish
-        await asyncio.sleep(0.2) # give CPU time to the task to can finish
-    #
-    # UDP Listener task function   
-    async def udp_rcv_task(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        print("Socked created")
-        sock.settimeout(0.001)
-        sock.bind(("127.0.0.1", 21105))
-        while not self.shut_down_event.is_set():
-            try:
-                sock.recv(1_000)
-                print("NO TIMEOUT")
-            except OSError as err:
-                if str(err) != "timed out":
-                    break
-            await asyncio.sleep(0.1) # get back some 
-        sock.close()
-        print("Socked closed")
-    #                                                                                       #
-    # #######################################################################################
-            
-    
-    
-    
-        
+
+
+
         
 
-    def _proc_rcv_stream(self, udp_data_stream:bytes) -> None:
-        # One stream can contain more than one Z21 Dataset! So our stream mus be processed as loop.
-        stream = udp_data_stream.copy()
-        while len(stream) >= 4: # Z21 Dataset must be at least 4 bytes long
-            dataset_length = int.from_bytes(stream[:2], byteorder='little')
-            if dataset_length > len(stream):
-                raise ValueError(f"Length information in Z21 answer is wrong. Byte 0 and 1 say length={dataset_length}, but Z21 Dataset length={len(stream)}")
-            dataset_header = int.from_bytes(stream[2:4], byteorder='little')
-            dataset_data = stream[4:dataset_length]
-            stream = stream[dataset_length:]
-            self._process_dataset(dataset_header, dataset_data)
-            
-
-    #                                                                                          #
-    # ##########################################################################################
     
     
     
