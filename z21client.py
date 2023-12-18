@@ -95,7 +95,47 @@ from dataclasses import dataclass
 #                                                                                                 #
 #                                                                                                 #
 # #################################################################################################
+
+@dataclass
+class Z21_DEFINES:
+    @dataclass
+    class UDP_PORT:
+        Z21_UDP_SERVER_PORT = 21105
+        Z21_UDP_CLIENT_PORT = 21105
+    @dataclass
+    class MSG_TO_Z21:
+        STRUC_TMPL = {
+            # TODO: a lot of work: expand to the full content
+        }
+        """ Structure to process outgoing messages
+        ------------------------------------------
+        Its prepared to add only the callback functions.
+        """
+        # TODO: Add this here and use it later
+    @dataclass
+    class MSG_FROM_Z21:
+        STRUC_TMPL = {
+                0x10:   {"name": "GET_SERIAL_NUMBER",   "callback": None, "variable": "serial_number"},
+                0x18:   {"name": "GET_CODE",            "callback": None, "variable": "lock_code"},
+                0x1A:   {"name": "GET_HWINFO",          "callback": None, "variable": "hw_type_fw_version"},
+                0x40:   {
+                    0x43: {"name": "X_TURNOUT_INFO",       "callback": None, "variable": "turnout_state"},
+                    0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": None, "variable": "serial_number"},
+                    0x61: {
+                        0x00: {"name": "X_BC_TRACK_POWER_OFF",  "callback": None, "variable": "serial_number"},
+                        0x01: {"name": "X_BC_TRACK_POWER_ON",   "callback": None, "variable": "serial_number"}
+                        }
+                    }
+                # TODO: a lot of work: expand to the full content
+        }
+        """ Structure to process incoming messages
+        ------------------------------------------
+        Its prepared to add only the callback functions.
+        """
+        
     
+    
+
 
 # #################################################################################################
 #                                                                                                 #
@@ -134,38 +174,33 @@ class Z21Client:
         """
         def __init__(self):
             self._data = {
-                """ Holds the last value received from Z21
-                ------------------------------------------
-                Values with value `None` are not yet initialized resp. waiting for a new requested actualizing.
-                
-                To get an actualized value, send the related request and wait until the value is not more `None`. By sending the request the last value of the requested value will be set to `None`. So, the non-`None` state is the signal that this value is actualized related to the last request.
-                """
                 "serial_number":  None, 
                 "lock_code": None,
                 "hw_type_fw_version": None,
                 "turnout_state": None # memorized as dictionary with elements:    address_number: state
-                
                 # TODO: Add all other values
                 }
+            """ Holds the last value received from Z21
+            ------------------------------------------
+            Values with value `None` are not yet initialized resp. waiting for a new requested actualizing.
+            
+            To get an actualized value, send the related request and wait until the value is not more `None`. By sending the request the last value of the requested value will be set to `None`. So, the non-`None` state is the signal that this value is actualized related to the last request.
+            """
             #
             # Structure to call the right data stream processing function depending headers automatically
-            # ...........................................................................................        
-            self._MSG_STRUC = {
+            # ...........................................................................................   
+            self._MSG_STRUC = Z21_DEFINES.MSG_FROM_Z21.STRUC_TMPL
+            self._MSG_STRUC[0x10]["callback"] = self._cb_uint32_le
+            self._MSG_STRUC[0x18]["callback"] = self._cb_lock_code
+            self._MSG_STRUC[0x1A]["callback"] = self._cb_hw_sw
+            self._MSG_STRUC[0x40][0x43]["callback"] = self._cb_actualize_turnout_state
+            self._MSG_STRUC[0x40][0x44]["callback"] = self._cb_dummy
+            self._MSG_STRUC[0x40][0x61][0x00]["callback"] = self._cb_dummy
+            self._MSG_STRUC[0x40][0x61][0x01]["callback"] = self._cb_dummy
+            # TODO: a lot of work
             """ Structure to process incoming messages
             """
-                0x10:   {"name": "GET_SERIAL_NUMBER",   "callback": self._cb_uint32_le, "variable": "serial_number"},
-                0x18:   {"name": "GET_CODE",            "callback": self._cb_lock_code, "variable": "lock_code"},
-                0x1A:   {"name": "GET_HWINFO",          "callback": self._cb_hw_sw, "variable": "hw_type_fw_version"},
-                0x40:   {
-                    0x43: {"name": "X_TURNOUT_INFO",    "callback": self._cb_actualize_turnout_state, "variable": "turnout_state"},
-                    0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": self._cb_dummy, "variable": "serial_number"},
-                    0x61: {
-                        0x00: {"name": "X_BC_TRACK_POWER_OFF",  "callback": self._cb_dummy, "variable": "serial_number"},
-                        0x01: {"name": "X_BC_TRACK_POWER_ON",   "callback": self._cb_dummy, "variable": "serial_number"}
-                        }
-                    }
-                }
-                # TODO: a lot of work
+                
             #
             #  Start the async task
             self._udp_rcv_task = self.Udp_rcv_task(self._MSG_STRUC, self.data)
@@ -298,7 +333,7 @@ class Z21Client:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 print("Socked created")
                 sock.settimeout(0.001)
-                sock.bind(("127.0.0.1", 21105))
+                sock.bind(("127.0.0.1", Z21_CONST.Z21_UDP_CLIENT_PORT))
                 while not self._shut_down_event.is_set():
                     try:
                         sock.recv(1_000)
@@ -529,12 +564,20 @@ def bcd_decode(data:bytes, decimals:int = 0):
 # #################################################################################################
   
   
+import socket 
 async def main():
     """Only for tests during development"""
-    z21 = Z21Client()  
-    await asyncio.sleep(15)
+    z21 = Z21Client()
+    UDP_IP = "192.168.0.111"
+    UDP_PORT = 21105 
+    MESSAGE = b'\x04\x00\x10\x00'
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("", UDP_PORT)) # das ist wichtig: so ist der Sende-Port gleich dem Empfangs-Port
+    while True:
+        sock.sendto(MESSAGE, (UDP_IP, UDP_PORT))
+        await asyncio.sleep(15)
+        
     await z21.stop()    
-    exit(0)
     
   
 if __name__ == '__main__':
