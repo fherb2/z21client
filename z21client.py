@@ -79,6 +79,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 # PyPi, typing is part of the source here and a good feature to deliver good quality software.
 # 
 from typing import Any
+from functools import partial
 #
 try:
     from collections.abc import Callable
@@ -98,23 +99,31 @@ from dataclasses import dataclass
 
 @dataclass
 class Z21_DEFINES:
+    """ Defines, Structures and Templates belonging Roco Z21 System
+    """
+    @dataclass
+    class IP_ADDRESSES:
+        STRUCT_TMPL:dict = {
+            "Z21_CENTRAL_STATION": "192.168.0.111"
+        }
+        """System IP addresses; can be expanded by other devices"""
     @dataclass
     class UDP_PORT:
-        Z21_UDP_SERVER_PORT = 21105
-        Z21_UDP_CLIENT_PORT = 21105
+        Z21_UDP_SERVER_PORTS:list[int] = [21105, 21106]
+        Z21_UDP_CLIENT_PORTS:list[int] = [21105]
     @dataclass
     class MSG_TO_Z21:
-        STRUC_TMPL = {
+        STRUCT_TMPL:dict = {
             # TODO: a lot of work: expand to the full content
         }
         """ Structure to process outgoing messages
         ------------------------------------------
-        Its prepared to add only the callback functions.
+        It has been prepared so far that only the call-back functions need to be added.
         """
         # TODO: Add this here and use it later
     @dataclass
     class MSG_FROM_Z21:
-        STRUC_TMPL = {
+        STRUCT_TMPL:dict = {
                 0x10:   {"name": "GET_SERIAL_NUMBER",   "callback": None, "variable": "serial_number"},
                 0x18:   {"name": "GET_CODE",            "callback": None, "variable": "lock_code"},
                 0x1A:   {"name": "GET_HWINFO",          "callback": None, "variable": "hw_type_fw_version"},
@@ -130,7 +139,7 @@ class Z21_DEFINES:
         }
         """ Structure to process incoming messages
         ------------------------------------------
-        Its prepared to add only the callback functions.
+        It has been prepared so far that only the call-back functions need to be added.
         """
         
     
@@ -190,6 +199,8 @@ class Z21Client:
             # Structure to call the right data stream processing function depending headers automatically
             # ...........................................................................................   
             self._MSG_STRUC = Z21_DEFINES.MSG_FROM_Z21.STRUC_TMPL
+            """ Structure to process incoming messages
+            """
             self._MSG_STRUC[0x10]["callback"] = self._cb_uint32_le
             self._MSG_STRUC[0x18]["callback"] = self._cb_lock_code
             self._MSG_STRUC[0x1A]["callback"] = self._cb_hw_sw
@@ -198,9 +209,6 @@ class Z21Client:
             self._MSG_STRUC[0x40][0x61][0x00]["callback"] = self._cb_dummy
             self._MSG_STRUC[0x40][0x61][0x01]["callback"] = self._cb_dummy
             # TODO: a lot of work
-            """ Structure to process incoming messages
-            """
-                
             #
             #  Start the async task
             self._udp_rcv_task = self.Udp_rcv_task(self._MSG_STRUC, self.data)
@@ -355,6 +363,55 @@ class Z21Client:
         #
         #                                                                                       #
         # #######################################################################################
+
+    def process_rcv_msg_callback(self, msg_struct:dict, datagram:bytes, variables:dict, msg_stage:int=0):
+        """process_rcv_msg_callback select the right callback function depending from the received datagram ant let the callback function run to convert the data in the datagram and put the result in the right variable of the dictionary `variables`.
+        ---------------------------------------------------------------------------------------------------------------
+
+        Args::
+        
+            msg_struct (dict): Special structured dictionary variable.
+            datagram (bytes) : received UDP data
+            variables (dict) : The variables dictionary to hold the received values.
+            msg_stage (int, optional): For recursive use only!. Don't change the value! Defaults to 0.
+            
+        """
+        # run over the header
+        if msg_stage < 2:
+            # header or x-header -> 2 byte
+            header = int.from_bytes(datagram[:2], byteorder='little', signed=False)
+            data   = datagram[2:]
+        else:
+            # DB0 -> 1 byte
+            header = int.from_bytes(datagram[:1], byteorder='little', signed=False)
+            data   = datagram[1:]
+        for key,value in msg_struct.iteritems():
+            if key == header:
+                if isinstance(value, dict):
+                    self.process_rcv_msg_callback(value, data, msg_stage = msg_stage + 1)
+                else:
+                    # Bingo!
+                    # Process the data and put the result into the specified variable of the variables-dictionary
+                    variables["variable"] = partial(value["callback"], data)
+                    break
+
+    def set_msg_callback(self, msg_struct:dict, name:str, callback_fct:Callable):
+        """set_msg_callback includes the right callback function into the message structure of variables containing the structure Z21_DEFINES.MSG_FROM_Z21.STRUCT_TMPL or structure Z21_DEFINES.MSG_TO_Z21.STRUCT_TMPL
+        -----------------------------------------------------------------------------------------------------
+
+        Its a recursive function to put a callback function into the right message of the receive or send messages.
+
+        Args:
+            msg_struct (dict): The structure containing the callback functions. See structure template in Z21_DEFINES.MSG_FROM_Z21 and Z21_DEFINES.MSG_TO_Z21.
+            name (str): Message name defined in Z21_DEFINES.MSG_FROM_Z21.STRUCT_TMPL and Z21_DEFINES.MSG_TO_Z21.STRUCT_TMPL
+            callback_fct (Callable): Callback function. Parameter is a byte stream for MSG_FROM_Z21 or a data value for MSG_TO_Z21.
+        """
+        for key,value in msg_struct.iteritems():
+            if isinstance(value, dict):
+                self.set_msg_callback(value, name, callback_fct)
+            else:
+                if key == name:
+                    msg_struct[key]["callback"] = callback_fct
 
 
 
