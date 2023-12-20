@@ -143,7 +143,13 @@ class Z21_DATASET:
                     0xE3: {
                         0x44: {"name": "X_PURGE_LOCO", "callback": None, "targetVariable": "loco_address"},
                         0xF0: {"name": "X_GET_LOCO_INFO", "callback": None, "targetVariable": "loco_address"},
-                        0x1s: ???
+                        }
+                    0xE4: {
+                        0x10: {"name": "X_SET_LOCO_DRIVE_14STEPS", "callback": None, "targetVariable": "loco_address_speed"},
+                        0x12: {"name": "X_SET_LOCO_DRIVE_28STEPS", "callback": None, "targetVariable": "loco_address_speed"},
+                        0x13: {"name": "X_SET_LOCO_DRIVE_128STEPS", "callback": None, "targetVariable": "loco_address_speed"},
+                        0xF8: {"name": "X_SET_LOCO_FUNCTION", "callback": None, "targetVariable": "loco_address_function"},
+                        GROUP???
                         }
                     }
                 
