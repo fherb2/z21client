@@ -91,52 +91,125 @@ import asyncio
 import socket
 from enum import Enum
 from enum import auto as enum_auto
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 #                                                                                                 #
 #                                                                                                 #
 # #################################################################################################
 
 @dataclass
-class Z21_DEFINES:
+class Z21_DATASET:
     """ Defines, Structures and Templates belonging Roco Z21 System
     """
-    @dataclass
-    class IP_ADDRESSES:
-        STRUCT_TMPL:dict = {
+    IP_ADDRESSES:dict = field(default_factory=lambda: {
             "Z21_CENTRAL_STATION": "192.168.0.111"
-        }
-        """System IP addresses; can be expanded by other devices"""
+            })
+    """System IP addresses; can be expanded with other system devices"""
     @dataclass
     class UDP_PORT:
-        Z21_UDP_SERVER_PORTS:list[int] = [21105, 21106]
-        Z21_UDP_CLIENT_PORTS:list[int] = [21105]
+        Z21_UDP_SERVER_PORTS:list[int] = field(default_factory=lambda:[21105, 21106])
+        Z21_UDP_CLIENT_PORTS:list[int] = field(default_factory=lambda:[21105])
     @dataclass
     class MSG_TO_Z21:
-        STRUCT_TMPL:dict = {
-            # TODO: a lot of work: expand to the full content
-        }
+        STRUCT_TMPL:dict = field(default_factory=lambda: {
+                0x10: {"name": "GET_SERIAL_NUMBER",   "callback": None, "target_variable": None},
+                0x18: {"name": "GET_CODE",   "callback": None, "targetVariable": None},
+                0x1A: {"name": "GET_HWINFO", "callback": None, "targetVariable": None},
+                0x30: {"name": "LOGOFF", "callback": None, "targetVariable": None},
+                0x40: {
+                    0x21: {
+                        0x21: {"name": "X_GET_VERSION", "callback": None, "targetVariable": None},
+                        0x24: {"name": "X_GET_STATUS", "callback": None, "targetVariable": None},
+                        0x80: {"name": "X_SET_TRACK_POWER_OFF", "callback": None, "targetVariable": None},
+                        0x81: {"name": "X_SET_TRACK_POWER_ON", "callback": None, "targetVariable": None},
+                        },
+                    0x22: {
+                        0x11: {"name": "X_DCC_READ_REGISTER", "callback": None, "targetVariable": "register"},
+                        },
+                    0x23: {
+                        0x11: {"name": "X_CV_READ", "callback": None, "targetVariable": "cv_address"},
+                        0x12: {"name": "X_DCC_WRITE_REGISTER", "callback": None, "targetVariable": "register_value"},
+                        },
+                    0x24: {
+                        0x12: {"name": "X_CV_WRITE", "callback": None, "targetVariable": "cv_address_value"},
+                        0xFF: {"name": "X_MM_WRITE_BYTE", "callback": None, "targetVariable": "register_value"},
+                        },
+                    0x43: {"name": "X_GET_TURNOUT_INFO", "callback": None, "targetVariable": "turnout_address"},
+                    0x44: {"name": "X_GET_EXT_ACCESSORY_INFO", "callback": None, "targetVariable": "accessory_decoder_address"},
+                    0x53: {"name": "X_SET_TURNOUT", "callback": None, "targetVariable": "turnout_address_command"},
+                    0x54: {"name": "X_SET_EXT_ACCESSORY", "callback": None, "targetVariable": "accessory_decoder_address_state"},
+                    0x80: {"name": "X_SET_STOP", "callback": None, "targetVariable": None},
+                    0x92: {"name": "X_SET_LOCO_E_STOP", "callback": None, "targetVariable": "loco_address"},
+                    0xE3: {
+                        0x44: {"name": "X_PURGE_LOCO", "callback": None, "targetVariable": "loco_address"},
+                        0xF0: {"name": "X_GET_LOCO_INFO", "callback": None, "targetVariable": "loco_address"},
+                        0x1s: ???
+                        }
+                    }
+                
+                })
         """ Structure to process outgoing messages
         ------------------------------------------
         It has been prepared so far that only the call-back functions need to be added.
         """
-        # TODO: Add this here and use it later
     @dataclass
     class MSG_FROM_Z21:
-        STRUCT_TMPL:dict = {
-                0x10:   {"name": "GET_SERIAL_NUMBER",   "callback": None, "variable": "serial_number"},
-                0x18:   {"name": "GET_CODE",            "callback": None, "variable": "lock_code"},
-                0x1A:   {"name": "GET_HWINFO",          "callback": None, "variable": "hw_type_fw_version"},
-                0x40:   {
+        STRUCT_TMPL:dict = field(default_factory=lambda: {
+                0x10: {"name": "SERIAL_NUMBER",   "callback": None, "variable": "serial_number"},
+                0x18: {"name": "CODE",            "callback": None, "variable": "lock_code"},
+                0x1A: {"name": "HWINFO",          "callback": None, "variable": "hw_type_fw_version"},
+                0x40: {
                     0x43: {"name": "X_TURNOUT_INFO",       "callback": None, "variable": "turnout_state"},
-                    0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": None, "variable": "serial_number"},
+                    0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": None, "variable": "accessory_state_information"},
                     0x61: {
-                        0x00: {"name": "X_BC_TRACK_POWER_OFF",  "callback": None, "variable": "serial_number"},
-                        0x01: {"name": "X_BC_TRACK_POWER_ON",   "callback": None, "variable": "serial_number"}
-                        }
+                        0x00: {"name": "X_BC_TRACK_POWER_OFF",     "callback": None, "variable": None},
+                        0x01: {"name": "X_BC_TRACK_POWER_ON",      "callback": None, "variable": None},
+                        0x02: {"name": "X_BC_PROGRAMMING_MODE",    "callback": None, "variable": None},
+                        0x08: {"name": "X_BC_TRACK_SHORT_CIRCUIT", "callback": None, "variable": None},
+                        0x12: {"name": "X_CV_NACK_SC",             "callback": None, "variable": None},
+                        0x13: {"name": "X_CV_NACK",                "callback": None, "variable": None},
+                        0x82: {"name": "X_UNKNOWN_COMMAND",        "callback": None, "variable": None},
+                        },
+                    0x62: {
+                        0x22: {"name": "X_STATUS_CHANGED",         "callback": None, "variable": "state"},
+                        },
+                    0x63: {
+                        0x21: {"name": "X_VERSION",          "callback": None, "variable": "xbus_version_id"},
+                        },
+                    0x64: {
+                        0x14: {"name": "X_CV_RESULT",        "callback": None, "variable": "cv_result"},
+                        },
+                    0x81: {"name": "X_BC_STOPPED",           "callback": None, "variable": None},
+                    0xEF: {"name": "X_LOCO_INFO",            "callback": None, "variable": "loco_information"},
+                    0xF3: {
+                        0x0A: {"name": "X_FIRMWARE_VERSION", "callback": None, "variable": "Version_bcd"},
+                        },
+                    },
+                0x51: {"name": "BROADCASTFLAGS",             "callback": None, "variable": "broadcast_flags"},
+                0x60: {"name": "LOCOMODE",                   "callback": None, "variable": "loco_address_mode"},
+                0x70: {"name": "TURNOUTMODE",                "callback": None, "variable": "accessory_decoder_address_mode"},
+                0x80: {"name": "RMBUS_DATACHANGED",          "callback": None, "variable": "group_index_feedback_status"},
+                0x84: {"name": "SYSTEMSTATE_DATACHANGED",    "callback": None, "variable": "system_state"},
+                0x88: {"name": "RAILCOM_DATACHANGED",        "callback": None, "variable": "rail_com_data"},
+                0xA0: {"name": "LOCONET_Z21_RX",             "callback": None, "variable": "loco_net_meldung"},
+                0xA1: {"name": "LOCONET_Z21_TX",             "callback": None, "variable": "loco_net_meldung"},
+                0xA2: {"name": "LOCONET_FROM_LAN",           "callback": None, "variable": "loco_net_meldung"},
+                0xA3: {"name": "LOCONET_DISPATCH_ADDR",      "callback": None, "variable": "loco_address_ergebnis"},
+                0xA4: {"name": "LOCONET_DETECTOR",           "callback": None, "variable": "type_feedback_address_info"},
+                0xC4: {"name": "CAN_DETECTOR",               "callback": None, "variable": "occupancy_message"},
+                0xC8: {"name": "CAN_DEVICE_DESCRIPTION",     "callback": None, "variable": "net_id_name"},
+                0xCA: {"name": "CAN_BOOSTER_SYSTEMSTATE_CHGD",    "callback": None, "variable": "can_booster_system_state"},
+                0xCD: {"name": "FAST_CLOCK_DATA",                 "callback": None, "variable": "fastclock_time"},
+                0xCE: {"name": "FAST_CLOCK_SETTINGS_GET",         "callback": None, "variable": "fastclock_settings"},
+                0xB8: {"name": "BOOSTER_DESCRIPTION",             "callback": None, "variable": "string"},
+                0xBA: {"name": "BOOSTER_SYSTEMSTATE_DATACHANGED", "callback": None, "variable": "booster_system_state"},
+                0xD8: {"name": "DECODER_DESCRIPTION",             "callback": None, "variable": "string"},
+                0xDA: {"name": "DECODER_SYSTEMSTATE_DATACHANGED", "callback": None, "variable": "decoder_system_state"},
+                0xE8: {
+                    0x06: {"name": "ZLINK_HWINFO",                "callback": None, "variable": "z_hw_info"},
                     }
                 # TODO: a lot of work: expand to the full content
-        }
+                })
         """ Structure to process incoming messages
         ------------------------------------------
         It has been prepared so far that only the call-back functions need to be added.
@@ -168,6 +241,8 @@ class Z21Client:
         ----------------------------------
         Conceptual state: The content and interfaces can still change considerably.
         """
+        print("INIT")
+        rcv = self.Rcv()
         pass # TODO
     #                                                                                              #
     # ##############################################################################################
@@ -333,6 +408,7 @@ class Z21Client:
         #
         class Udp_rcv_task:
             def __init__(self, msg_struct:dict, data:dict):
+                print("AAA")
                 self._shut_down_event = asyncio.Event()
                 self._udp_listener_task = asyncio.create_task(self._task_proc(msg_struct, data))
             #
@@ -341,11 +417,11 @@ class Z21Client:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 print("Socked created")
                 sock.settimeout(0.001)
-                sock.bind(("127.0.0.1", Z21_CONST.Z21_UDP_CLIENT_PORT))
+                sock.bind(("127.0.0.1", Z21_DEFINES.UDP_PORT.Z21_UDP_CLIENT_PORTS[0]))
                 while not self._shut_down_event.is_set():
                     try:
-                        sock.recv(1_000)
-                        print("NO TIMEOUT")
+                        data = sock.recv(10_000)
+                        print(f"Received data: len: {len(data)}")
                         # ############
                         # TODO: This is the place to process the data
                         # ############
@@ -420,61 +496,6 @@ class Z21Client:
     # ##############################################################################################
 
 
-
-        
-
-    
-    
-    
-    # ##########################################################################################
-    #                                                                                          #
-    # MESSAGES                                                                                 #
-    # --------                                                                                 #
-    #                                                                                          #
-    @dataclass
-    class snd:
-        def get_serial_number(self):
-            self.send(0x10)
-        def get_code(self):
-            self.send(0x18)
-        def get_hwinfo(self):
-            self.send(0x1A)
-        def logoff(self):
-            self.send(0x30)
-        def x_get_version(self):
-            self.send(0x40, 0x21, 0x21)
-        def x_get_status(self):
-            self.send(0x40, 0x21, 0x24)
-        def x_set_track_power_off(self):
-            self.send(0x40, 0x21, 0x80)
-        def x_set_track_power_on(self):
-            self.send(0x40, 0x21, 0x81)
-        def x_dcc_read_register(self, register:int):
-            self.send(0x40, 0x22, 0x11, register)
-        def x_cv_read(self, cv_address:int):
-            self.send(0x40, 0x23, 0x11, cv_address)
-        def x_dcc_write_register(self, register:int, value:int):
-            self.send(0x40, 0x23, 0x11, (register, value))
-        def x_cv_write(self, cv_address:int, value:int):
-            self.send(0x40, 0x24, 0x12, (cv_address, value))
-        def x_mm_write_byte(self, register:int, value:int):
-            self.send(0x40, 0x24, 0xFF, (register, value))
-        def x_get_turnout_info(self, turnout_address:int):
-            self.send(0x40, 0x43, data=(turnout_address))
-            
-         
-            
-                                
-    #                                                                                          #
-    # ##########################################################################################
-    
-    def send(self,
-             header:int,
-             x_header:(int|None)   = None,
-             db0:(int|None)        = None,
-             data:Any                   = None
-            ):
-        pass
     
 #                                                                                                 #
 #                                                                                                 #
@@ -629,7 +650,7 @@ async def main():
     UDP_PORT = 21105 
     MESSAGE = b'\x04\x00\x10\x00'
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("", UDP_PORT)) # das ist wichtig: so ist der Sende-Port gleich dem Empfangs-Port
+    sock.bind(("", UDP_PORT)) # das ist wichtig: so ist der Sende-Port gleich dem Empfangs-Port (?)
     while True:
         sock.sendto(MESSAGE, (UDP_IP, UDP_PORT))
         await asyncio.sleep(15)
