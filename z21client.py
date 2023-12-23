@@ -99,128 +99,232 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Z21_DATASET:
-    """ Defines, Structures and Templates belonging Roco Z21 System
+    """Definitions, structures and templates associated with the Roco/Fleischmann Z21 Systems
+    -----------------------------------------------------------------------------------------
+    This data class contains a series of definitions and templates for communication.
+    
+    What is directly defined when creating an instance of this class can be used as it is. However, some data are preconfigured templates, such as the sub-class 'MSG_TO_Z21'. Such templates are preconfigured and must still be filled in by the program before they can be used. In the MSG_TO_Z21 class as an example, the reference to the callback function must be added in this way before this class can be used usefully.
     """
     IP_ADDRESSES:dict = field(default_factory=lambda: {
             "Z21_CENTRAL_STATION": "192.168.0.111"
             })
-    """System IP addresses; can be expanded with other system devices"""
+    """System IP addresses
+    ----------------------
+    Default is the address of the central station on delivery.
+    
+    Can and should be expanded with other system devices if part of the full system.
+    """
     @dataclass
     class UDP_PORT:
+        """Possible usable UDP ports of the Z21-compatible devices
+        ----------------------------------------------------------
+        Defaults are defined as specified from Roco/Fleischmann.
+        
+        The values are set in lists so that the range can be extended if necessary.
+        """
         Z21_UDP_SERVER_PORTS:list[int] = field(default_factory=lambda:[21105, 21106])
         Z21_UDP_CLIENT_PORTS:list[int] = field(default_factory=lambda:[21105])
     @dataclass
-    class MSG_TO_Z21:
-        STRUCT_TMPL:dict = field(default_factory=lambda: {
-                0x10: {"name": "GET_SERIAL_NUMBER",   "callback": None, "target_variable": None},
-                0x18: {"name": "GET_CODE",   "callback": None, "targetVariable": None},
-                0x1A: {"name": "GET_HWINFO", "callback": None, "targetVariable": None},
-                0x30: {"name": "LOGOFF", "callback": None, "targetVariable": None},
-                0x40: {
-                    0x21: {
-                        0x21: {"name": "X_GET_VERSION", "callback": None, "targetVariable": None},
-                        0x24: {"name": "X_GET_STATUS", "callback": None, "targetVariable": None},
-                        0x80: {"name": "X_SET_TRACK_POWER_OFF", "callback": None, "targetVariable": None},
-                        0x81: {"name": "X_SET_TRACK_POWER_ON", "callback": None, "targetVariable": None},
-                        },
-                    0x22: {
-                        0x11: {"name": "X_DCC_READ_REGISTER", "callback": None, "targetVariable": "register"},
-                        },
-                    0x23: {
-                        0x11: {"name": "X_CV_READ", "callback": None, "targetVariable": "cv_address"},
-                        0x12: {"name": "X_DCC_WRITE_REGISTER", "callback": None, "targetVariable": "register_value"},
-                        },
-                    0x24: {
-                        0x12: {"name": "X_CV_WRITE", "callback": None, "targetVariable": "cv_address_value"},
-                        0xFF: {"name": "X_MM_WRITE_BYTE", "callback": None, "targetVariable": "register_value"},
-                        },
-                    0x43: {"name": "X_GET_TURNOUT_INFO", "callback": None, "targetVariable": "turnout_address"},
-                    0x44: {"name": "X_GET_EXT_ACCESSORY_INFO", "callback": None, "targetVariable": "accessory_decoder_address"},
-                    0x53: {"name": "X_SET_TURNOUT", "callback": None, "targetVariable": "turnout_address_command"},
-                    0x54: {"name": "X_SET_EXT_ACCESSORY", "callback": None, "targetVariable": "accessory_decoder_address_state"},
-                    0x80: {"name": "X_SET_STOP", "callback": None, "targetVariable": None},
-                    0x92: {"name": "X_SET_LOCO_E_STOP", "callback": None, "targetVariable": "loco_address"},
-                    0xE3: {
-                        0x44: {"name": "X_PURGE_LOCO", "callback": None, "targetVariable": "loco_address"},
-                        0xF0: {"name": "X_GET_LOCO_INFO", "callback": None, "targetVariable": "loco_address"},
-                        }
-                    0xE4: {
-                        0x10: {"name": "X_SET_LOCO_DRIVE_14STEPS", "callback": None, "targetVariable": "loco_address_speed"},
-                        0x12: {"name": "X_SET_LOCO_DRIVE_28STEPS", "callback": None, "targetVariable": "loco_address_speed"},
-                        0x13: {"name": "X_SET_LOCO_DRIVE_128STEPS", "callback": None, "targetVariable": "loco_address_speed"},
-                        0xF8: {"name": "X_SET_LOCO_FUNCTION", "callback": None, "targetVariable": "loco_address_function"},
-                        GROUP???
-                        }
-                    }
-                
-                })
-        """ Structure to process outgoing messages
-        ------------------------------------------
-        It has been prepared so far that only the call-back functions need to be added.
+    class MSGs:
+        """Special structures in order to automate sending and receiving messages between server and client.
+        ----------------------------------------------------------------------------------------------------
+        See the extended details by the elements here.
         """
-    @dataclass
-    class MSG_FROM_Z21:
-        STRUCT_TMPL:dict = field(default_factory=lambda: {
-                0x10: {"name": "SERIAL_NUMBER",   "callback": None, "variable": "serial_number"},
-                0x18: {"name": "CODE",            "callback": None, "variable": "lock_code"},
-                0x1A: {"name": "HWINFO",          "callback": None, "variable": "hw_type_fw_version"},
+        TO_Z21:dict = field(default_factory=lambda: {
+            0x10: {"name": "GET_SERIAL_NUMBER"  , "callback": None, "targetValueName": None},
+            0x18: {"name": "GET_CODE"           , "callback": None, "targetValueName": None},
+            0x1A: {"name": "GET_HWINFO"         , "callback": None, "targetValueName": None},
+            0x30: {"name": "LOGOFF"             , "callback": None, "targetValueName": None},
+            0x40: {
+                0x21: {
+                    0x21: {"name": "X_GET_VERSION"          , "callback": None, "targetValueName": None},
+                    0x24: {"name": "X_GET_STATUS"           , "callback": None, "targetValueName": None},
+                    0x80: {"name": "X_SET_TRACK_POWER_OFF"  , "callback": None, "targetValueName": None},
+                    0x81: {"name": "X_SET_TRACK_POWER_ON"   , "callback": None, "targetValueName": None},
+                    },
+                0x22: {
+                    0x11: {"name": "X_DCC_READ_REGISTER"    , "callback": None, "targetValueName": None},
+                    },
+                0x23: {
+                    0x11: {"name": "X_CV_READ"              , "callback": None, "targetValueName": None},
+                    0x12: {"name": "X_DCC_WRITE_REGISTER"   , "callback": None, "targetValueName": None},
+                    },
+                0x24: {
+                    0x12: {"name": "X_CV_WRITE"             , "callback": None, "targetValueName": None},
+                    0xFF: {"name": "X_MM_WRITE_BYTE"        , "callback": None, "targetValueName": None},
+                    },
+                0x43: {"name": "X_GET_TURNOUT_INFO"         , "callback": None, "targetValueName": None},
+                0x44: {"name": "X_GET_EXT_ACCESSORY_INFO"   , "callback": None, "targetValueName": None},
+                0x53: {"name": "X_SET_TURNOUT"              , "callback": None, "targetValueName": None},
+                0x54: {"name": "X_SET_EXT_ACCESSORY"        , "callback": None, "targetValueName": None},
+                0x80: {"name": "X_SET_STOP"                 , "callback": None, "targetValueName": None},
+                0x92: {"name": "X_SET_LOCO_E_STOP"          , "callback": None, "targetValueName": None},
+                0xE3: {
+                    0x44: {"name": "X_PURGE_LOCO"       , "callback": None, "targetValueName": None},
+                    0xF0: {"name": "X_GET_LOCO_INFO"    , "callback": None, "targetValueName": None},
+                    },
+                0xE4: {
+                    0x10: {"name": "X_SET_LOCO_DRIVE_14STEPS"   , "callback": None, "targetValueName": None},
+                    0x12: {"name": "X_SET_LOCO_DRIVE_28STEPS"   , "callback": None, "targetValueName": None},
+                    0x13: {"name": "X_SET_LOCO_DRIVE_128STEPS"  , "callback": None, "targetValueName": None},
+                    0xF8: {"name": "X_SET_LOCO_FUNCTION"        , "callback": None, "targetValueName": None},
+                    0x20: {"name": "X_SET_LOCO_FUNCTION_GROUP_1", "callback": None, "targetValueName": None},
+                    0x21: {"name": "X_SET_LOCO_FUNCTION_GROUP_2", "callback": None, "targetValueName": None},
+                    0x22: {"name": "X_SET_LOCO_FUNCTION_GROUP_3", "callback": None, "targetValueName": None},
+                    0x23: {"name": "X_SET_LOCO_FUNCTION_GROUP_4", "callback": None, "targetValueName": None},
+                    0x28: {"name": "X_SET_LOCO_FUNCTION_GROUP_5", "callback": None, "targetValueName": None},
+                    0x29: {"name": "X_SET_LOCO_FUNCTION_GROUP_6", "callback": None, "targetValueName": None},
+                    0x2A: {"name": "X_SET_LOCO_FUNCTION_GROUP_7", "callback": None, "targetValueName": None},
+                    0x2B: {"name": "X_SET_LOCO_FUNCTION_GROUP_8", "callback": None, "targetValueName": None},   
+                    0x50: {"name": "X_SET_LOCO_FUNCTION_GROUP_9", "callback": None, "targetValueName": None},
+                    0x51: {"name": "X_SET_LOCO_FUNCTION_GROUP_10"   , "callback": None, "targetValueName": None},
+                    0x5F: {"name": "X_SET_LOCO_BINARY_STATE"    , "callback": None, "targetValueName": None},
+                    },
+                0xE6: {
+                    0x30: {"name:": "X_CV_POM_WRITE_BYTE"       , "callback":None, "targetValueName":None},
+                    0x30: {"name:": "X_CV_POM_WRITE_BIT"        , "callback":None, "targetValueName":None},
+                    0x30: {"name:": "X_CV_POM_READ_BYTE"        , "callback":None, "targetValueName":None},
+                    0x31: {"name:": "X_CV_POM_ACCESSORY_WRITE_BYTE", "callback":None, "targetValueName":None},
+                    0x31: {"name:": "X_CV_POM_ ACCESSORY_WRITE_BIT", "callback":None, "targetValueName":None},
+                    0x31: {"name:": "X_CV_POM_ ACCESSORY_READ_BYTE", "callback":None, "targetValueName":None},
+                    },
+                0xF1: {
+                    0x0A: {"name:": "_X_GET_FIRMWARE_VERSION"   , "callback":None, "targetValueName":None},
+                    },
+                },
+            0x50: {"name:": "SET_BROADCASTFLAGS"    , "callback":None, "targetValueName":None},
+            0x51: {"name:": "GET_BROADCASTFLAGS"    , "callback":None, "targetValueName":None},
+            0x60: {"name:": "GET_LOCOMODE"          , "callback":None, "targetValueName":None},
+            0x61: {"name:": "SET_LOCOMODE"          , "callback":None, "targetValueName":None},
+            0x70: {"name:": "GET_TURNOUTMODE"       , "callback":None, "targetValueName":None},
+            0x71: {"name:": "SET_TURNOUTMODE"       , "callback":None, "targetValueName":None},
+            0x81: {"name:": "RMBUS_GETDATA"         , "callback":None, "targetValueName":None},
+            0x82: {"name:": "RMBUS_PROGRAMMODULE"   , "callback":None, "targetValueName":None},
+            0x85: {"name:": "SYSTEMSTATE_GETDATA"   , "callback":None, "targetValueName":None},
+            0x89: {"name:": "RAILCOM_GETDATA"       , "callback":None, "targetValueName":None},
+            0xA2: {"name:": "LOCONET_FROM_LAN"      , "callback":None, "targetValueName":None},
+            0xA3: {"name:": "LOCONET_DISPATCH_ADDR" , "callback":None, "targetValueName":None},
+            0xA4: {"name:": "LOCONET_DETECTOR"      , "callback":None, "targetValueName":None},
+            0xC4: {"name:": "CAN_DETECTOR"          , "callback":None, "targetValueName":None},
+            0xC8: {"name:": "CAN_DEVICE_GET_DESCRIPTION"    , "callback":None, "targetValueName":None},
+            0xC9: {"name:": "CAN_DEVICE_SET_DESCRIPTION"    , "callback":None, "targetValueName":None},
+            0xCB: {"name:": "CAN_BOOSTER_SET_TRACKPOWER"    , "callback":None, "targetValueName":None},
+            0xCC: {"name:": "FAST_CLOCK_CONTROL"            , "callback":None, "targetValueName":None},
+            0xCE: {"name:": "FAST_CLOCK_SETTINGS_GET"       , "callback":None, "targetValueName":None},
+            0xCF: {"name:": "FAST_CLOCK_SETTINGS_SET"       , "callback":None, "targetValueName":None},
+            0xB2: {"name:": "BOOSTER_SET_POWER"             , "callback":None, "targetValueName":None},
+            0xB8: {"name:": "BOOSTER_GET_DESCRIPTION"       , "callback":None, "targetValueName":None},
+            0xB9: {"name:": "BOOSTER_SET_DESCRIPTION"       , "callback":None, "targetValueName":None},
+            0xBB: {"name:": "BOOSTER_SYSTEMSTATE_GETDATA"   , "callback":None, "targetValueName":None},
+            0xD8: {"name:": "DECODER_GET_DESCRIPTION"       , "callback":None, "targetValueName":None},
+            0xD9: {"name:": "DECODER_SET_DESCRIPTION"       , "callback":None, "targetValueName":None},
+            0xDB: {"name:": "DECODER_SYSTEMSTATE_GETDATA"   , "callback":None, "targetValueName":None},
+            0xE8: {
+                0x06: {"name:": "ZLINK_GET_HWINFO"  , "callback":None, "targetValueName":None},
+                },
+            })
+        """ Structure to initialize and process outgoing messages
+        ---------------------------------------------------------
+        It is so far prepared that only the call-back functions need to be added.
+
+        The structure represents the fixed header and subheader/date values of a specific message. At the lowest level of the dictionary you will find a specially defined dictionary::
+        
+            name (str): The official message name, defined by Roco/Fleischmann.
+                        This is used by the sender process to find the right
+                        headers, the callback function to process the given data
+                        and, in case the message will be answered by a value,
+                        the value name to take the response value into the right
+                        memory.
+            callback (Callback):
+                        Must be filled in by the program with a function
+                        reference that formats the data for sending.
+                        Default to None -> no callback function registered.
+            targetValueName (str):
+                        If the message is answered with a value, this is the name
+                        of the value in which the value from the response is saved
+                        as soon as the response has arrived. 
+                        This is important here, as the mechanism for recognizing
+                        that a request has been answered is done by replacing the
+                        value 'None' with the received value. This makes it
+                        possible to recognize when the current value has been
+                        received after the request has been sent.
+                        Default to none -> no response value expected.
+        """
+        From_Z21:dict = field(default_factory=lambda: {
+                0x10: {"name": "SERIAL_NUMBER",   "callback": None, "targetValueName": "serial_number"},
+                0x18: {"name": "CODE",            "callback": None, "targetValueName": "lock_code"},
+                0x1A: {"name": "HWINFO",          "callback": None, "targetValueName": "hw_type_fw_version"},
                 0x40: {
-                    0x43: {"name": "X_TURNOUT_INFO",       "callback": None, "variable": "turnout_state"},
-                    0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": None, "variable": "accessory_state_information"},
+                    0x43: {"name": "X_TURNOUT_INFO",       "callback": None, "targetValueName": "turnout_state"},
+                    0x44: {"name": "X_EXT_ACCESSORY_INFO", "callback": None, "targetValueName": "accessory_state_information"},
                     0x61: {
-                        0x00: {"name": "X_BC_TRACK_POWER_OFF",     "callback": None, "variable": None},
-                        0x01: {"name": "X_BC_TRACK_POWER_ON",      "callback": None, "variable": None},
-                        0x02: {"name": "X_BC_PROGRAMMING_MODE",    "callback": None, "variable": None},
-                        0x08: {"name": "X_BC_TRACK_SHORT_CIRCUIT", "callback": None, "variable": None},
-                        0x12: {"name": "X_CV_NACK_SC",             "callback": None, "variable": None},
-                        0x13: {"name": "X_CV_NACK",                "callback": None, "variable": None},
-                        0x82: {"name": "X_UNKNOWN_COMMAND",        "callback": None, "variable": None},
+                        0x00: {"name": "X_BC_TRACK_POWER_OFF",     "callback": None, "targetValueName": None},
+                        0x01: {"name": "X_BC_TRACK_POWER_ON",      "callback": None, "targetValueName": None},
+                        0x02: {"name": "X_BC_PROGRAMMING_MODE",    "callback": None, "targetValueName": None},
+                        0x08: {"name": "X_BC_TRACK_SHORT_CIRCUIT", "callback": None, "targetValueName": None},
+                        0x12: {"name": "X_CV_NACK_SC",             "callback": None, "targetValueName": None},
+                        0x13: {"name": "X_CV_NACK",                "callback": None, "targetValueName": None},
+                        0x82: {"name": "X_UNKNOWN_COMMAND",        "callback": None, "targetValueName": None},
                         },
                     0x62: {
-                        0x22: {"name": "X_STATUS_CHANGED",         "callback": None, "variable": "state"},
+                        0x22: {"name": "X_STATUS_CHANGED",         "callback": None, "targetValueName": "state"},
                         },
                     0x63: {
-                        0x21: {"name": "X_VERSION",          "callback": None, "variable": "xbus_version_id"},
+                        0x21: {"name": "X_VERSION",          "callback": None, "targetValueName": "xbus_version_id"},
                         },
                     0x64: {
-                        0x14: {"name": "X_CV_RESULT",        "callback": None, "variable": "cv_result"},
+                        0x14: {"name": "X_CV_RESULT",        "callback": None, "targetValueName": "cv_result"},
                         },
-                    0x81: {"name": "X_BC_STOPPED",           "callback": None, "variable": None},
-                    0xEF: {"name": "X_LOCO_INFO",            "callback": None, "variable": "loco_information"},
+                    0x81: {"name": "X_BC_STOPPED",           "callback": None, "targetValueName": None},
+                    0xEF: {"name": "X_LOCO_INFO",            "callback": None, "targetValueName": "loco_information"},
                     0xF3: {
-                        0x0A: {"name": "X_FIRMWARE_VERSION", "callback": None, "variable": "Version_bcd"},
+                        0x0A: {"name": "X_FIRMWARE_VERSION", "callback": None, "targetValueName": "Version_bcd"},
                         },
                     },
-                0x51: {"name": "BROADCASTFLAGS",             "callback": None, "variable": "broadcast_flags"},
-                0x60: {"name": "LOCOMODE",                   "callback": None, "variable": "loco_address_mode"},
-                0x70: {"name": "TURNOUTMODE",                "callback": None, "variable": "accessory_decoder_address_mode"},
-                0x80: {"name": "RMBUS_DATACHANGED",          "callback": None, "variable": "group_index_feedback_status"},
-                0x84: {"name": "SYSTEMSTATE_DATACHANGED",    "callback": None, "variable": "system_state"},
-                0x88: {"name": "RAILCOM_DATACHANGED",        "callback": None, "variable": "rail_com_data"},
-                0xA0: {"name": "LOCONET_Z21_RX",             "callback": None, "variable": "loco_net_meldung"},
-                0xA1: {"name": "LOCONET_Z21_TX",             "callback": None, "variable": "loco_net_meldung"},
-                0xA2: {"name": "LOCONET_FROM_LAN",           "callback": None, "variable": "loco_net_meldung"},
-                0xA3: {"name": "LOCONET_DISPATCH_ADDR",      "callback": None, "variable": "loco_address_ergebnis"},
-                0xA4: {"name": "LOCONET_DETECTOR",           "callback": None, "variable": "type_feedback_address_info"},
-                0xC4: {"name": "CAN_DETECTOR",               "callback": None, "variable": "occupancy_message"},
-                0xC8: {"name": "CAN_DEVICE_DESCRIPTION",     "callback": None, "variable": "net_id_name"},
-                0xCA: {"name": "CAN_BOOSTER_SYSTEMSTATE_CHGD",    "callback": None, "variable": "can_booster_system_state"},
-                0xCD: {"name": "FAST_CLOCK_DATA",                 "callback": None, "variable": "fastclock_time"},
-                0xCE: {"name": "FAST_CLOCK_SETTINGS_GET",         "callback": None, "variable": "fastclock_settings"},
-                0xB8: {"name": "BOOSTER_DESCRIPTION",             "callback": None, "variable": "string"},
-                0xBA: {"name": "BOOSTER_SYSTEMSTATE_DATACHANGED", "callback": None, "variable": "booster_system_state"},
-                0xD8: {"name": "DECODER_DESCRIPTION",             "callback": None, "variable": "string"},
-                0xDA: {"name": "DECODER_SYSTEMSTATE_DATACHANGED", "callback": None, "variable": "decoder_system_state"},
+                0x51: {"name": "BROADCASTFLAGS",             "callback": None, "targetValueName": "broadcast_flags"},
+                0x60: {"name": "LOCOMODE",                   "callback": None, "targetValueName": "loco_address_mode"},
+                0x70: {"name": "TURNOUTMODE",                "callback": None, "targetValueName": "accessory_decoder_address_mode"},
+                0x80: {"name": "RMBUS_DATACHANGED",          "callback": None, "targetValueName": "group_index_feedback_status"},
+                0x84: {"name": "SYSTEMSTATE_DATACHANGED",    "callback": None, "targetValueName": "system_state"},
+                0x88: {"name": "RAILCOM_DATACHANGED",        "callback": None, "targetValueName": "rail_com_data"},
+                0xA0: {"name": "LOCONET_Z21_RX",             "callback": None, "targetValueName": "loco_net_meldung"},
+                0xA1: {"name": "LOCONET_Z21_TX",             "callback": None, "targetValueName": "loco_net_meldung"},
+                0xA2: {"name": "LOCONET_FROM_LAN",           "callback": None, "targetValueName": "loco_net_meldung"},
+                0xA3: {"name": "LOCONET_DISPATCH_ADDR",      "callback": None, "targetValueName": "loco_address_ergebnis"},
+                0xA4: {"name": "LOCONET_DETECTOR",           "callback": None, "targetValueName": "type_feedback_address_info"},
+                0xC4: {"name": "CAN_DETECTOR",               "callback": None, "targetValueName": "occupancy_message"},
+                0xC8: {"name": "CAN_DEVICE_DESCRIPTION",     "callback": None, "targetValueName": "net_id_name"},
+                0xCA: {"name": "CAN_BOOSTER_SYSTEMSTATE_CHGD",    "callback": None, "targetValueName": "can_booster_system_state"},
+                0xCD: {"name": "FAST_CLOCK_DATA",                 "callback": None, "targetValueName": "fastclock_time"},
+                0xCE: {"name": "FAST_CLOCK_SETTINGS_GET",         "callback": None, "targetValueName": "fastclock_settings"},
+                0xB8: {"name": "BOOSTER_DESCRIPTION",             "callback": None, "targetValueName": "string"},
+                0xBA: {"name": "BOOSTER_SYSTEMSTATE_DATACHANGED", "callback": None, "targetValueName": "booster_system_state"},
+                0xD8: {"name": "DECODER_DESCRIPTION",             "callback": None, "targetValueName": "string"},
+                0xDA: {"name": "DECODER_SYSTEMSTATE_DATACHANGED", "callback": None, "targetValueName": "decoder_system_state"},
                 0xE8: {
-                    0x06: {"name": "ZLINK_HWINFO",                "callback": None, "variable": "z_hw_info"},
+                    0x06: {"name": "ZLINK_HWINFO",                "callback": None, "targetValueName": "z_hw_info"},
                     }
                 # TODO: a lot of work: expand to the full content
                 })
-        """ Structure to process incoming messages
-        ------------------------------------------
-        It has been prepared so far that only the call-back functions need to be added.
-        """
+        """ Structure to initialize and process incoming messages
+        ---------------------------------------------------------
+        It is so far prepared that only the call-back functions need to be added.
         
+        The structure represents the fixed header and subheader/date values of a specific message. At the lowest level of the dictionary you will find a specially defined dictionary::
+        
+            name (str): The official message name, defined by Roco/Fleischmann.
+                        This for information purposes only.
+            callback (Callback):
+                        Must be filled in by the program with a function
+                        reference processing the received data stream
+                        that decodes the data for receiving.
+                        Default to None -> no callback function registered.
+            targetValueName (str):
+                        Normally a message is answered with a value or is to
+                        be interpreted as special information. This is the name
+                        of the variable in which the value from the response is
+                        stored.       
+        """
     
     
 
@@ -234,6 +338,8 @@ class Z21Client:
     """z21 main class
     =================
     For some basic information about the module and the classes, please, read the module documentation.
+    
+    This is the main class for clients to communicate with Roco/Fleischmann Z21 System devices like central stations or boosters.
 
     Conceptual state: The content and interfaces can still change considerably.
     """
@@ -401,11 +507,11 @@ class Z21Client:
                             dataset_data = dataset_data[1:]
                         else:
                             dataset_data = None
-                        sub_sub_header["callback"](dataset_data, sub_sub_header["variable"])
+                        sub_sub_header["callback"](dataset_data, sub_sub_header["targetValueName"])
                     else:
-                        sub_header["callback"](dataset_data, sub_sub_header["variable"])
+                        sub_header["callback"](dataset_data, sub_sub_header["targetValueName"])
                 else:
-                    dataset_header["callback"](dataset_data, sub_sub_header["variable"])
+                    dataset_header["callback"](dataset_data, sub_sub_header["targetValueName"])
         #
         #
         #
@@ -474,7 +580,7 @@ class Z21Client:
                 else:
                     # Bingo!
                     # Process the data and put the result into the specified variable of the variables-dictionary
-                    variables["variable"] = partial(value["callback"], data)
+                    variables["targetValueName"] = partial(value["callback"], data)
                     break
 
     def set_msg_callback(self, msg_struct:dict, name:str, callback_fct:Callable):
