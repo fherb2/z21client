@@ -324,36 +324,6 @@ class Z21Client:
         #                                                                                       #
         # #######################################################################################
 
-    def process_rcv_msg_callback(self, msg_struct:dict, datagram:bytes, variables:dict, msg_stage:int=0):
-        """process_rcv_msg_callback select the right callback function depending from the received datagram ant let the callback function run to convert the data in the datagram and put the result in the right variable of the dictionary `variables`.
-        ---------------------------------------------------------------------------------------------------------------
-
-        Args::
-        
-            msg_struct (dict): Special structured dictionary variable.
-            datagram (bytes) : received UDP data
-            variables (dict) : The variables dictionary to hold the received values.
-            msg_stage (int, optional): For recursive use only!. Don't change the value! Defaults to 0.
-            
-        """
-        # run over the header
-        if msg_stage < 2:
-            # header or x-header -> 2 byte
-            header = int.from_bytes(datagram[:2], byteorder='little', signed=False)
-            data   = datagram[2:]
-        else:
-            # DB0 -> 1 byte
-            header = int.from_bytes(datagram[:1], byteorder='little', signed=False)
-            data   = datagram[1:]
-        for key,value in msg_struct.iteritems():
-            if key == header:
-                if isinstance(value, dict):
-                    self.process_rcv_msg_callback(value, data, msg_stage = msg_stage + 1)
-                else:
-                    # Bingo!
-                    # Process the data and put the result into the specified variable of the variables-dictionary
-                    variables["targetValueName"] = partial(value["callback"], data)
-                    break
 
     def set_msg_callback(self, msg_struct:dict, name:str, callback_fct:Callable):
         """set_msg_callback includes the right callback function into the message structure of variables containing the structure Z21_DEFINES.MSG_FROM_Z21.STRUCT_TMPL or structure Z21_DEFINES.MSG_TO_Z21.STRUCT_TMPL
