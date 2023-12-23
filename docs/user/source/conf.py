@@ -6,9 +6,9 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'MyProjectName'
-copyright = '2023, Frank'
-author = 'fh'
+project = 'Z21 Client'
+copyright = '2023, Frank Herbrand'
+author = 'Frank Herbrand'
 release = '0.0.1'
 
 # -- Path setup --------------------------------------------------------------

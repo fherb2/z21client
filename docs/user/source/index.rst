@@ -1,10 +1,10 @@
-Welcome to ThinFilmOpticsPy's User Documentation!
-=================================================
+Welcome to Z21Client User Documentation!
+========================================
 
 .. autosummary::
    :toctree: _autosummary
    :template: custom-module-template.rst
    :recursive:
 
-   python_package_source_folder
+   z21client
 
